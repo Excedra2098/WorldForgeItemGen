@@ -210,14 +210,15 @@ final class RealmShards implements Listener, CommandExecutor, TabCompleter {
 
             if(args.length>0&&args[0].equalsIgnoreCase("boundary")){
                 if(!(sender instanceof Player p))throw new IllegalArgumentException("Use boundary calibration in-game.");
-                if(args.length<2)throw new IllegalArgumentException("/realmshards boundary <profiles|preview [radius]|test|off|status>");
+                if(args.length<2)throw new IllegalArgumentException("/realmshards boundary <profiles|preview [radius]|perimeter [radius]|test|off|status>");
                 switch(args[1].toLowerCase(Locale.ROOT)){
                     case "profiles" -> boundaryPreview.profiles(p);
                     case "preview" -> boundaryPreview.preview(p,args.length>2?Integer.parseInt(args[2]):24);
                     case "test" -> boundaryPreview.test(p);
+                    case "perimeter" -> boundaryPreview.perimeter(p,args.length>2?Integer.parseInt(args[2]):32);
                     case "off" -> boundaryPreview.stop(p);
                     case "status" -> p.sendMessage("§dHybrid boundary: §fcalibration only; physical changes and automatic effects disabled.");
-                    default -> throw new IllegalArgumentException("/realmshards boundary <profiles|preview [radius]|test|off|status>");
+                    default -> throw new IllegalArgumentException("/realmshards boundary <profiles|preview [radius]|perimeter [radius]|test|off|status>");
                 }
                 return true;
             }
@@ -269,7 +270,7 @@ final class RealmShards implements Listener, CommandExecutor, TabCompleter {
 
         if(a.length==1){List<String> commands=new ArrayList<>(List.of("menu","preview","give","roll","testremove","testremoveall","boundary"));if(s instanceof ConsoleCommandSender)commands.add("claim");if(s instanceof Player p&&access.owner(p))commands.addAll(List.of("schematics","testtools"));return commands.stream().filter(v->v.startsWith(a[0].toLowerCase(Locale.ROOT))).toList();}
 
-        if(a.length==2&&a[0].equalsIgnoreCase("boundary"))return List.of("profiles","preview","test","off","status").stream().filter(v->v.startsWith(a[1].toLowerCase(Locale.ROOT))).toList();
+        if(a.length==2&&a[0].equalsIgnoreCase("boundary"))return List.of("profiles","preview","perimeter","test","off","status").stream().filter(v->v.startsWith(a[1].toLowerCase(Locale.ROOT))).toList();
 
         if(a.length==2&&a[0].equalsIgnoreCase("testremove"))return "all".startsWith(a[1].toLowerCase(Locale.ROOT))?List.of("all"):List.of();
 
