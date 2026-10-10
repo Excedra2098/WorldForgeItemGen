@@ -85,6 +85,90 @@ final class RealmBoundaryPreview {
         animate(p, world, samples, false);
     }
 
+
+    /** Experimental footprint outline. Only exterior air connected to scan border counts;
+     * interior ponds/core voids never qualify as external gaps. No blocks are changed. */
+    void perimeter(Player p, int radius) {
+        islands.describe(p.getWorld());
+        cancel(p);
+        int r = Math.max(12, Math.min(32, radius));
+        World w = p.getWorld();
+        int cx=p.getLocation().getBlockX(), cz=p.getLocation().getBlockZ();
+        int base=p.getLocation().getBlockY();
+        int size=2*r+1;
+        boolean[][] land=new boolean[size][size];
+        boolean[][] outside=new boolean[size][size];
+        boolean[][] connected=new boolean[size][size];
+        int minY=Math.max(w.getMinHeight()+1,base-16);
+        int maxY=Math.min(w.getMaxHeight()-2,base+3);
+        int columns=0;
+        for(int i=0;i<size;i++)for(int j=0;j<size;j++) {
+            int x=cx-r+i,z=cz-r+j;
+            if(!w.isChunkLoaded(x>>4,z>>4))continue;
+            for(int y=maxY;y>=minY;y--) {
+                org.bukkit.Material m=w.getBlockAt(x,y,z).getType();
+                // Require two adjacent solid structural blocks to avoid leaves,
+                // fences, flowers, decorative pillars and water.
+                if(m.isSolid() && w.getBlockAt(x,y-1,z).getType().isSolid()
+                    && !m.name().contains("LEAVES") && !m.name().contains("LOG")
+                    && !m.name().contains("FENCE") && !m.name().contains("WALL")) {
+                    land[i][j]=true;columns++;break;
+                }
+            }
+        }
+        java.util.ArrayDeque<int[]> queue=new java.util.ArrayDeque<>();
+        for(int i=0;i<size;i++)for(int j=0;j<size;j++)if(i==0||j==0||i==size-1||j==size-1)
+            if(!land[i][j]&&!outside[i][j]){outside[i][j]=true;queue.add(new int[]{i,j});}
+        int[][] dirs={{1,0},{-1,0},{0,1},{0,-1}};
+        while(!queue.isEmpty()){
+            int[] n=queue.removeFirst();
+            for(int[] d:dirs){int x=n[0]+d[0],z=n[1]+d[1];
+                if(x>=0&&z>=0&&x<size&&z<size&&!land[x][z]&&!outside[x][z]){
+                    outside[x][z]=true;queue.addLast(new int[]{x,z});
+                }
+            }
+        }
+        // Follow only the connected terrain component nearest the player.
+        int seedX=-1,seedZ=-1,best=Integer.MAX_VALUE;
+        for(int i=0;i<size;i++)for(int j=0;j<size;j++)if(land[i][j]){
+            int distance=(i-r)*(i-r)+(j-r)*(j-r);
+            if(distance<best){best=distance;seedX=i;seedZ=j;}
+        }
+        if(seedX<0){p.sendMessage("§eNo structural terrain found within scan radius.");return;}
+        connected[seedX][seedZ]=true;queue.add(new int[]{seedX,seedZ});
+        while(!queue.isEmpty()){
+            int[] n=queue.removeFirst();
+            for(int[] d:dirs){int x=n[0]+d[0],z=n[1]+d[1];
+                if(x>=0&&z>=0&&x<size&&z<size&&land[x][z]&&!connected[x][z]){
+                    connected[x][z]=true;queue.addLast(new int[]{x,z});
+                }
+            }
+        }
+        List<Location> points=new ArrayList<>();
+        int edges=0;
+        boolean clipped=false;
+        for(int i=1;i<size-1;i++)for(int j=1;j<size-1;j++)if(connected[i][j]){
+            boolean external=false;
+            for(int[] d:dirs)if(outside[i+d[0]][j+d[1]])external=true;
+            if(!external)continue;
+            edges++;
+            int x=cx-r+i,z=cz-r+j;
+            for(int y=maxY;y>=minY;y--){
+                if(w.getBlockAt(x,y,z).getType().isSolid()
+                    && w.getBlockAt(x,y-1,z).getType().isSolid()){
+                    if(points.size()<100)points.add(new Location(w,x+.5,y+1.1,z+.5));
+                    break;
+                }
+            }
+        }
+        for(int i=0;i<size;i++)if(connected[i][0]||connected[i][size-1]||connected[0][i]||connected[size-1][i])clipped=true;
+        p.sendMessage("§dExperimental exterior preview: §f"+edges+" perimeter columns, "+points.size()+" visible markers for 30 seconds.");
+        p.sendMessage("§7Structural columns: "+columns+"; scan radius: "+r+"; touches scan limit: "+clipped+". No blocks changed.");
+        if(clipped)p.sendMessage("§eSome land reaches the scan boundary. Stand nearer the center; the outline may be incomplete.");
+        if(points.isEmpty())p.sendMessage("§eNo exterior positions detected; the terrain may fill the scan or chunks may be unloaded.");
+        else animate(p,w,points,false);
+    }
+
     private void cancel(Player p) {
         BukkitTask old = previews.remove(p.getUniqueId());
         if (old != null) old.cancel();
