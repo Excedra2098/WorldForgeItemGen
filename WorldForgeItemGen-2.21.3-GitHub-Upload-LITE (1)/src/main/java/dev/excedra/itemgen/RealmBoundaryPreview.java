@@ -156,13 +156,26 @@ final class RealmBoundaryPreview {
             for(int y=maxY;y>=minY;y--){
                 if(w.getBlockAt(x,y,z).getType().isSolid()
                     && w.getBlockAt(x,y-1,z).getType().isSolid()){
-                    if(points.size()<100)points.add(new Location(w,x+.5,y+1.1,z+.5));
+                    points.add(new Location(w,x+.5,y+1.1,z+.5));
                     break;
                 }
             }
         }
         for(int i=0;i<size;i++)if(connected[i][0]||connected[i][size-1]||connected[0][i]||connected[size-1][i])clipped=true;
-        p.sendMessage("§dExperimental exterior preview: §f"+edges+" perimeter columns, "+points.size()+" visible markers for 30 seconds.");
+        // Evenly sample the entire perimeter in angular order, rather than stopping
+        // after the first 100 positions (which favored one corner).
+        points.sort(java.util.Comparator.comparingDouble(loc -> {
+            double a=Math.atan2(loc.getZ()-(cz+.5),loc.getX()-(cx+.5));
+            return a<0?a+Math.PI*2:a;
+        }));
+        final int maxMarkers=100;
+        if(points.size()>maxMarkers){
+            List<Location> evenlySpaced=new ArrayList<>(maxMarkers);
+            for(int i=0;i<maxMarkers;i++)
+                evenlySpaced.add(points.get((int)((long)i*points.size()/maxMarkers)));
+            points=evenlySpaced;
+        }
+        p.sendMessage("§dExperimental exterior preview: §f"+edges+" perimeter columns, "+points.size()+" evenly distributed markers for 30 seconds.");
         p.sendMessage("§7Structural columns: "+columns+"; scan radius: "+r+"; touches scan limit: "+clipped+". No blocks changed.");
         if(clipped)p.sendMessage("§eSome land reaches the scan boundary. Stand nearer the center; the outline may be incomplete.");
         if(points.isEmpty())p.sendMessage("§eNo exterior positions detected; the terrain may fill the scan or chunks may be unloaded.");
