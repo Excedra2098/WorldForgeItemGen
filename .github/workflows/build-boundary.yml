@@ -16,8 +16,10 @@ jobs:
           java-version: '25'
           cache: maven
       - name: Build plugin against Paper API
+        working-directory: 'WorldForgeItemGen-2.21.3-GitHub-Upload-LITE (1)'
         run: mvn --batch-mode --no-transfer-progress clean package -DskipTests
       - name: Verify plugin descriptor is bundled
+        working-directory: 'WorldForgeItemGen-2.21.3-GitHub-Upload-LITE (1)'
         run: |
           JAR=$(find target -maxdepth 1 -name '*.jar' ! -name '*sources*' | head -1)
           test -n "$JAR"
@@ -25,5 +27,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: WorldForgeItemGen-2.21.3-boundary-calibration-UNTESTED
-          path: target/*.jar
+          path: 'WorldForgeItemGen-2.21.3-GitHub-Upload-LITE (1)/target/*.jar'
           if-no-files-found: error
