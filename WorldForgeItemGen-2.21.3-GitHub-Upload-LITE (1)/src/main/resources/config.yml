@@ -1,0 +1,76 @@
+# Existing Worldforge islands are mandatory for activation. No worlds are created.
+realmshards:
+  # Testing only: testremove/testremoveall and Owner tools require allowed LuckPerms ranks.
+  testing-removal-enabled: true
+  # Crack buildup before testremove shatters the fragment (40–160 ticks).
+  testing-collapse-ticks: 90
+  # Maximum visible-block aim distance for the Owner ShardBreaker Wand (16–512).
+  testing-wand-range: 256
+  # Actual-block shrinking visual proxy: exact cuboids, sampled for very complex realms.
+  reclaim-visuals: 1024
+  # Actual terrain unbinding wave and simultaneous visual entities (bounded for server performance).
+  testing-dissolve-ticks: 100
+  testing-dissolve-visuals: 180
+  # Custom fracture skins distributed across exposed island faces (48–256).
+  testing-fracture-panels: 192
+  # Crystal facets per shatter storm (12–64); affects activation and test removal.
+  shatter-max-fragments: 48
+  blocks-per-tick: 180
+  max-active-server: 4
+  particles-per-tick: 96
+  resource-pack:
+    # Host RealmShards-resource-pack.zip at a direct HTTPS download URL.
+    url: ''
+    sha1: ''
+    required: true
+  # Standard radii; Shiny multiplies by 1.35 and Rainbow by 1.75, rounded up.
+  tier-radius: [5, 7, 9, 11, 13]
+  tier-animation-ticks: [100, 120, 145, 175, 210]
+
+# Plugin-owned anchors: Worldforge's mutable home coordinates are never treated as island centers.
+realmcore:
+  automatic:
+    enabled: true
+    player-groups: [default]
+    staff-groups: [Admin, Head-Admin, Owner]
+    templates: [01_terraced_rune_garden, 02_sunrise_lily_basin, 03_blossom_pergola_sanctuary, 04_riverbridge_rune_garden]
+  attachment:
+    x: 0
+    z: 0
+    # Omit y to detect existing ground. Staff can override with /realmcore anchor.
+    # Matched by WorldForge template ID or schematic filename (without .schem).
+    # These four pads use pink glazed terracotta over a sea lantern at X=0, Z=0.
+    # Updated templates have solid 21x21 plazas; the Core uses only the central 5x5.
+    # Exact original recessed pads can be repaired safely; modified pads require staff inspection.
+    templates:
+      01_terraced_rune_garden:
+        x: 0
+        z: 0
+        marked-pad: true
+      02_sunrise_lily_basin:
+        x: 0
+        z: 0
+        marked-pad: true
+      # VIP; island access stays governed by WorldForge's template permissions.
+      03_blossom_pergola_sanctuary:
+        x: 0
+        z: 0
+        marked-pad: true
+      04_riverbridge_rune_garden:
+        x: 0
+        z: 0
+        marked-pad: true
+  expansion:
+    require-core: true
+    maximum-radius: 4096
+
+# Read-only staff perimeter calibration. Does not modify the Worldforge plugin.
+realm-boundaries:
+  enabled: false
+  mode: HYBRID
+  starter-islands:
+    schematic-folder: "plugins/WorldForge/schematics/starter-islands"
+  physical-decorations:
+    enabled: false
+  automatic-effects:
+    enabled: false

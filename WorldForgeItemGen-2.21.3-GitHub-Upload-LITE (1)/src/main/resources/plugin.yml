@@ -1,0 +1,119 @@
+name: WorldForgeItemGen
+
+version: 2.21.3-core-test
+
+main: dev.excedra.itemgen.WorldForgeItemGen
+
+api-version: '26.2'
+
+author: Excedra2098
+
+description: Item editor and RealmShards world-forging expansion
+
+softdepend: [Worldforge, LuckPerms]
+
+commands:
+
+  itemgen:
+
+    description: Create and manage custom items
+
+    aliases: [ig, customitem]
+
+    permission: worldforge.itemgen.admin
+
+  startershards:
+
+    description: Custom starter forge, fusion and staff grants
+    aliases: [startertrealm, starterrealm]
+
+    usage: /startershards [menu|combine|combineall [mixed]|give <player> <theme> [amount]|giveall <player> [amount]]
+
+  realmcore:
+    description: Core customization, staff grants, anchoring and recovery
+
+  realmweaver:
+    description: Obtain a player Realmweaver placement wand
+    permission: worldforge.realmweaver.obtain
+
+  realmshards:
+
+    description: Open the Realm Forge or manage shards
+
+    aliases: [shards, rforge, realmshard]
+
+permissions:
+  worldforge.realmcore.automatic:
+    description: Receive a preinstalled Core on a newly created starter island
+    default: true
+  worldforge.realmcore.manual:
+    description: Keep the staff Core Shard placement workflow
+    default: false
+
+  worldforge.realmcore.resetclaim:
+    description: Reset a player's one-time NPC Core Shard claim for testing
+    default: false
+
+  worldforge.realmcore.reclaim:
+    description: Retrieve a Realm Core using the staff Reclaimer
+    default: false
+
+  worldforge.realmcore.replace:
+    description: Replace a lost Core Shard and invalidate its previous identity
+    default: false
+
+  worldforge.realmshards.place.direct:
+    description: Place a shard by right-clicking it without a Realmweaver (staff)
+    default: op
+
+  worldforge.realmweaver.use:
+    description: Select and place shards through the Realmweaver Wand
+    default: true
+
+  worldforge.realmshards.moderate:
+    description: Use moderation wands and place or restore shards in other players' Realms
+    default: op
+
+  worldforge.realmcore.use:
+    default: true
+
+  worldforge.realmcore.create:
+    description: Establish one permanent Core in your owned Realm
+    default: false
+
+  worldforge.realmcore.admin:
+    description: Grant Core Seeds and manage prototype Core commands
+    default: false
+
+  worldforge.realmweaver.obtain:
+    description: Obtain the player placement wand during prototype testing
+    default: true
+
+  worldforge.itemgen.admin:
+
+    default: op
+
+  worldforge.realmshards.use:
+
+    default: true
+
+  worldforge.realmshards.admin:
+
+    description: Legacy node; commands additionally require allowed LuckPerms rank
+
+    default: false
+
+  worldforge.realmshards.testing.remove:
+
+    description: Testing removal additionally requires allowed LuckPerms rank
+
+    default: false
+
+
+  worldforge.realmcore.testing:
+    description: Per-admin test mode, island anchor overrides, migration and locked cosmetic previews
+    default: false
+
+  worldforge.realmcore.cosmetics.grant:
+    description: Explicitly grant event, seasonal or exclusive Core cosmetics
+    default: false
