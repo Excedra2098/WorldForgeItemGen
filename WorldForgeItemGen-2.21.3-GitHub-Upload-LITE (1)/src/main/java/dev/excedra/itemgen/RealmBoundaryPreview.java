@@ -212,11 +212,13 @@ final class RealmBoundaryPreview {
                 double ox=dx/len*.65,oz=dz/len*.65;
                 Location outside=edge.clone().add(ox,-.4,oz);
                 // Bright upper rim plus lower, darker void-facing fracture layer.
-                p.spawnParticle(Particle.DUST,outside,5,.16,.12,.16,0,glow);
+                p.spawnParticle(Particle.DUST,outside,3,.15,.11,.15,0,glow);
                 p.spawnParticle(Particle.END_ROD,outside.clone().add(0,.45,0),1,.04,.06,.04,0);
-                p.spawnParticle(Particle.DUST,outside.clone().add(0,-1.05,0),3,.2,.2,.2,0,deep);
-                if((displayed&3)==0)
-                    p.spawnParticle(Particle.DUST,outside.clone().add(0,-1.8,0),2,.14,.25,.14,0,deep);
+                p.spawnParticle(Particle.DUST,outside.clone().add(0,-1.4,0),3,.2,.22,.2,0,deep);
+                if((displayed&3)==0) {
+                    p.spawnParticle(Particle.DUST,outside.clone().add(0,-2.8,0),2,.14,.35,.14,0,deep);
+                    p.spawnParticle(Particle.PORTAL,outside.clone().add(0,-2.2,0),2,.16,.4,.16,.01);
+                }
                 // Small neighboring spans; do not draw long chords through the island.
                 for(Location other:points){
                     double px=other.getX()-edge.getX(),pz=other.getZ()-edge.getZ();
@@ -236,6 +238,7 @@ final class RealmBoundaryPreview {
     void hybrid(Player p, int radius) {
         hybridMode.add(p.getUniqueId());
         perimeter(p, radius);
+        hybridMode.remove(p.getUniqueId());
     }
 
     private void createDebris(Player p, World world, List<Location> points, double cx, double cz) {
@@ -243,24 +246,33 @@ final class RealmBoundaryPreview {
         List<BlockDisplay> spawned = new ArrayList<>();
         Material[] palette = {Material.COBBLED_DEEPSLATE, Material.CRACKED_STONE_BRICKS,
             Material.CRYING_OBSIDIAN, Material.AMETHYST_BLOCK};
-        int count = Math.min(20, points.size() / 5);
+        // Balanced treatment: clustered medium stones, sparse crystal shards,
+        // and deterministic spacing per preview (not uniform around the rim).
+        int count = Math.min(18, Math.max(6, points.size()/7));
         for (int i=0; i<count; i++) {
-            Location edge = points.get((int)((long)i*points.size()/count));
+            // Pair occasional neighboring fragments into small broken-rock clusters.
+            int anchor = (int)((long)i*points.size()/count);
+            if(i%4==1) anchor=Math.max(0,anchor-2);
+            Location edge = points.get(Math.min(points.size()-1,anchor));
             double dx=edge.getX()-cx, dz=edge.getZ()-cz;
             double length=Math.max(.1,Math.hypot(dx,dz));
-            Location at=edge.clone().add(dx/length*(1.2+random.nextDouble()*.7),
-                -1.0-random.nextDouble()*1.8, dz/length*(1.2+random.nextDouble()*.7));
-            if (!world.isChunkLoaded(at.getBlockX()>>4,at.getBlockZ()>>4)) continue;
-            if (!world.getBlockAt(at).getType().isAir()) continue;
-            BlockData data=palette[random.nextInt(palette.length)].createBlockData();
+            double outward=1.65+random.nextDouble()*1.3;
+            Location at=edge.clone().add(dx/length*outward,
+                -1.25-random.nextDouble()*2.8, dz/length*outward);
+            if(!world.isChunkLoaded(at.getBlockX()>>4,at.getBlockZ()>>4)) continue;
+            if(!world.getBlockAt(at).getType().isAir()) continue;
+            // Crystal pieces are deliberately rarer than structural stone.
+            Material chosen = i%6==0 ? Material.AMETHYST_BLOCK : palette[random.nextInt(2)];
+            BlockData data=chosen.createBlockData();
+            float scale=.52f+random.nextFloat()*.42f;
             BlockDisplay display=world.spawn(at,BlockDisplay.class,d -> {
-                d.setPersistent(false); d.setGravity(false); d.setBlock(data);
-                float scale=.3f+random.nextFloat()*.45f;
+                d.setPersistent(false); d.setGravity(false); d.setInvulnerable(true);
+                d.setBlock(data);
                 d.setTransformation(new org.bukkit.util.Transformation(
                     new org.joml.Vector3f(-scale/2,-scale/2,-scale/2),
                     new org.joml.AxisAngle4f(random.nextFloat()*6.28f,0,1,0),
                     new org.joml.Vector3f(scale,scale,scale),
-                    new org.joml.AxisAngle4f()));
+                    new org.joml.AxisAngle4f(random.nextFloat()*.55f,1,0,0)));
             });
             spawned.add(display);
         }
