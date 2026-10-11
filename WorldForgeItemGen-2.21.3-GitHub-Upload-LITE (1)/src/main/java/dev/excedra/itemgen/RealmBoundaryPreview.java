@@ -179,7 +179,49 @@ final class RealmBoundaryPreview {
         p.sendMessage("§7Structural columns: "+columns+"; scan radius: "+r+"; touches scan limit: "+clipped+". No blocks changed.");
         if(clipped)p.sendMessage("§eSome land reaches the scan boundary. Stand nearer the center; the outline may be incomplete.");
         if(points.isEmpty())p.sendMessage("§eNo exterior positions detected; the terrain may fill the scan or chunks may be unloaded.");
-        else animate(p,w,points,false);
+        else animateEnhanced(p,w,points,cx+.5,cz+.5);
+    }
+
+    /** Brighter, client-only perimeter preview. Nearby points are connected only
+     * when actually adjacent, so the animation never bridges empty corners. */
+    private void animateEnhanced(Player p, World world, List<Location> points, double centerX, double centerZ) {
+        final UUID id=p.getUniqueId();
+        final int[] cycles={0};
+        final Particle.DustOptions glow=new Particle.DustOptions(Color.fromRGB(185,65,255),2.5f);
+        final Particle.DustOptions deep=new Particle.DustOptions(Color.fromRGB(100,40,205),1.7f);
+        BukkitTask task=Bukkit.getScheduler().runTaskTimer(plugin,()->{
+            if(!p.isOnline()||p.getWorld()!=world||cycles[0]++>=60){
+                BukkitTask active=previews.remove(id);
+                if(active!=null)active.cancel();
+                return;
+            }
+            int displayed=0;
+            for(Location edge:points){
+                if(edge.distanceSquared(p.getLocation())>48*48)continue;
+                if(!world.isChunkLoaded(edge.getBlockX()>>4,edge.getBlockZ()>>4))continue;
+                double dx=edge.getX()-centerX,dz=edge.getZ()-centerZ;
+                double len=Math.max(.01,Math.sqrt(dx*dx+dz*dz));
+                double ox=dx/len*.65,oz=dz/len*.65;
+                Location outside=edge.clone().add(ox,-.4,oz);
+                // Bright upper rim plus lower, darker void-facing fracture layer.
+                p.spawnParticle(Particle.DUST,outside,5,.16,.12,.16,0,glow);
+                p.spawnParticle(Particle.END_ROD,outside.clone().add(0,.45,0),1,.04,.06,.04,0);
+                p.spawnParticle(Particle.DUST,outside.clone().add(0,-1.05,0),3,.2,.2,.2,0,deep);
+                if((displayed&3)==0)
+                    p.spawnParticle(Particle.DUST,outside.clone().add(0,-1.8,0),2,.14,.25,.14,0,deep);
+                // Small neighboring spans; do not draw long chords through the island.
+                for(Location other:points){
+                    double px=other.getX()-edge.getX(),pz=other.getZ()-edge.getZ();
+                    double ds=px*px+pz*pz;
+                    if(ds<.9||ds>4.1||Math.abs(other.getY()-edge.getY())>1.6)continue;
+                    Location mid=edge.clone().add(px*.5+ox,-.4,pz*.5+oz);
+                    p.spawnParticle(Particle.DUST,mid,2,.08,.06,.08,0,glow);
+                    break;
+                }
+                if(++displayed>=100)break;
+            }
+        },0L,10L);
+        previews.put(id,task);
     }
 
     private void cancel(Player p) {
