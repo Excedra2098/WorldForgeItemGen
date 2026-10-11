@@ -7,6 +7,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Random;
+import org.bukkit.Material;
+import org.bukkit.entity.BlockDisplay;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
@@ -22,6 +26,9 @@ final class RealmBoundaryPreview {
         "01_terraced_rune_garden.schem", "02_sunrise_lily_basin.schem",
         "03_blossom_pergola_sanctuary.schem", "04_riverbridge_rune_garden.schem");
     private static final Particle.DustOptions PURPLE = new Particle.DustOptions(Color.fromRGB(170, 70, 255), 1.8f);
+    private final Map<UUID, List<BlockDisplay>> debris = new HashMap<>();
+    private final Random random = new Random();
+    private final java.util.Set<UUID> hybridMode = new java.util.HashSet<>();
     private final JavaPlugin plugin;
     private final IslandBridge islands;
     private final Map<UUID, BukkitTask> previews = new HashMap<>();
@@ -41,6 +48,7 @@ final class RealmBoundaryPreview {
     void stop(Player p) {
         BukkitTask prior = previews.remove(p.getUniqueId());
         if (prior != null) prior.cancel();
+        clearDebris(p);
         p.sendMessage("§7Boundary particle preview stopped.");
     }
 
@@ -179,7 +187,7 @@ final class RealmBoundaryPreview {
         p.sendMessage("§7Structural columns: "+columns+"; scan radius: "+r+"; touches scan limit: "+clipped+". No blocks changed.");
         if(clipped)p.sendMessage("§eSome land reaches the scan boundary. Stand nearer the center; the outline may be incomplete.");
         if(points.isEmpty())p.sendMessage("§eNo exterior positions detected; the terrain may fill the scan or chunks may be unloaded.");
-        else animateEnhanced(p,w,points,cx+.5,cz+.5);
+        else { animateEnhanced(p,w,points,cx+.5,cz+.5); if(hybridMode.remove(p.getUniqueId())) createDebris(p,w,points,cx+.5,cz+.5); }
     }
 
     /** Brighter, client-only perimeter preview. Nearby points are connected only
@@ -224,9 +232,51 @@ final class RealmBoundaryPreview {
         previews.put(id,task);
     }
 
+    /** Temporary non-solid fragments around detected outer terrain. No blocks modified. */
+    void hybrid(Player p, int radius) {
+        hybridMode.add(p.getUniqueId());
+        perimeter(p, radius);
+    }
+
+    private void createDebris(Player p, World world, List<Location> points, double cx, double cz) {
+        clearDebris(p);
+        List<BlockDisplay> spawned = new ArrayList<>();
+        Material[] palette = {Material.COBBLED_DEEPSLATE, Material.CRACKED_STONE_BRICKS,
+            Material.CRYING_OBSIDIAN, Material.AMETHYST_BLOCK};
+        int count = Math.min(20, points.size() / 5);
+        for (int i=0; i<count; i++) {
+            Location edge = points.get((int)((long)i*points.size()/count));
+            double dx=edge.getX()-cx, dz=edge.getZ()-cz;
+            double length=Math.max(.1,Math.hypot(dx,dz));
+            Location at=edge.clone().add(dx/length*(1.2+random.nextDouble()*.7),
+                -1.0-random.nextDouble()*1.8, dz/length*(1.2+random.nextDouble()*.7));
+            if (!world.isChunkLoaded(at.getBlockX()>>4,at.getBlockZ()>>4)) continue;
+            if (!world.getBlockAt(at).getType().isAir()) continue;
+            BlockData data=palette[random.nextInt(palette.length)].createBlockData();
+            BlockDisplay display=world.spawn(at,BlockDisplay.class,d -> {
+                d.setPersistent(false); d.setGravity(false); d.setBlock(data);
+                float scale=.3f+random.nextFloat()*.45f;
+                d.setTransformation(new org.bukkit.util.Transformation(
+                    new org.joml.Vector3f(-scale/2,-scale/2,-scale/2),
+                    new org.joml.AxisAngle4f(random.nextFloat()*6.28f,0,1,0),
+                    new org.joml.Vector3f(scale,scale,scale),
+                    new org.joml.AxisAngle4f()));
+            });
+            spawned.add(display);
+        }
+        debris.put(p.getUniqueId(),spawned);
+        p.sendMessage("§dHybrid preview: §f"+spawned.size()+" temporary floating fragments; automatically cleared in 30 seconds.");
+    }
+
+    private void clearDebris(Player p) {
+        List<BlockDisplay> old=debris.remove(p.getUniqueId());
+        if(old!=null)for(BlockDisplay d:old)if(d.isValid())d.remove();
+    }
+
     private void cancel(Player p) {
         BukkitTask old = previews.remove(p.getUniqueId());
         if (old != null) old.cancel();
+        clearDebris(p);
     }
 
     private void animate(Player p, World world, List<Location> points, boolean diagnostic) {
