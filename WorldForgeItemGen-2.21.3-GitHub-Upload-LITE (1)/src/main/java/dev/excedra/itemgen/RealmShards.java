@@ -129,7 +129,7 @@ final class RealmShards implements Listener, CommandExecutor, TabCompleter {
 
     }
 
-    void stop(){try{if(realmweaver!=null)realmweaver.stop();if(wandConvergence!=null)wandConvergence.stop();if(starters!=null)starters.fusion.stop();if(schematicForge!=null)schematicForge.stop();if(heldDisplays!=null)heldDisplays.stop();if(removals!=null)removals.stop();if(ownerTools!=null)ownerTools.stop();for(Session s:List.copyOf(active.values()))s.abort("Server stopping");tasks.forEach(BukkitTask::cancel);saveRefunds();}finally{if(realmCore!=null)realmCore.stop();journalWriter.close();}}
+    void stop(){try{if(boundaryPreview!=null)boundaryPreview.stopAll();if(realmweaver!=null)realmweaver.stop();if(wandConvergence!=null)wandConvergence.stop();if(starters!=null)starters.fusion.stop();if(schematicForge!=null)schematicForge.stop();if(heldDisplays!=null)heldDisplays.stop();if(removals!=null)removals.stop();if(ownerTools!=null)ownerTools.stop();for(Session s:List.copyOf(active.values()))s.abort("Server stopping");tasks.forEach(BukkitTask::cancel);saveRefunds();}finally{if(realmCore!=null)realmCore.stop();journalWriter.close();}}
 
     void openStarters(Player p){starters.open(p);}
     void openOwnerTools(Player p){ownerTools.open(p);}
