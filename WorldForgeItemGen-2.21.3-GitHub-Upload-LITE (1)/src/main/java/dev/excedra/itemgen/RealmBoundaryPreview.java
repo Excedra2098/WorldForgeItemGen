@@ -201,6 +201,7 @@ final class RealmBoundaryPreview {
             if(!p.isOnline()||p.getWorld()!=world||cycles[0]++>=60){
                 BukkitTask active=previews.remove(id);
                 if(active!=null)active.cancel();
+                clearDebris(p);
                 return;
             }
             int displayed=0;
@@ -267,6 +268,7 @@ final class RealmBoundaryPreview {
             float scale=.52f+random.nextFloat()*.42f;
             BlockDisplay display=world.spawn(at,BlockDisplay.class,d -> {
                 d.setPersistent(false); d.setGravity(false); d.setInvulnerable(true);
+                d.addScoreboardTag("worldforge_boundary_preview");
                 d.setBlock(data);
                 d.setTransformation(new org.bukkit.util.Transformation(
                     new org.joml.Vector3f(-scale/2,-scale/2,-scale/2),
@@ -277,7 +279,21 @@ final class RealmBoundaryPreview {
             spawned.add(display);
         }
         debris.put(p.getUniqueId(),spawned);
+        // Independent expiry: debris must not rely on the particle task remaining active.
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            List<BlockDisplay> current = debris.get(p.getUniqueId());
+            if(current==spawned) clearDebris(p);
+        }, 600L);
         p.sendMessage("§dHybrid preview: §f"+spawned.size()+" temporary floating fragments; automatically cleared in 30 seconds.");
+    }
+
+    void stopAll() {
+        for(BukkitTask task:new ArrayList<>(previews.values())) task.cancel();
+        previews.clear();
+        for(List<BlockDisplay> displays:new ArrayList<>(debris.values()))
+            for(BlockDisplay display:displays) if(display!=null && display.isValid()) display.remove();
+        debris.clear();
+        hybridMode.clear();
     }
 
     private void clearDebris(Player p) {
