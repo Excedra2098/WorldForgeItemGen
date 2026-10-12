@@ -74,3 +74,8 @@ realm-boundaries:
     enabled: false
   automatic-effects:
     enabled: false
+
+  # Phase 3.7 pilot: disabled unless explicitly enabled by the server owner.
+  # Only staff receive automatic effects on entering a registered Realm.
+  staff-auto:
+    enabled: false
