@@ -860,7 +860,26 @@ final class RealmShards implements Listener, CommandExecutor, TabCompleter {
 
     @EventHandler(ignoreCancelled=true) public void retract(BlockPistonRetractEvent e){if(e.getBlocks().stream().anyMatch(b->reserved(b.getLocation())||reserved(b.getRelative(e.getDirection()).getLocation())))e.setCancelled(true);}
 
-    @EventHandler public void join(PlayerJoinEvent e){Bukkit.getScheduler().runTaskLater(plugin,()->{deliverRefunds(e.getPlayer());offerPack(e.getPlayer());},20);}
+    @EventHandler public void join(PlayerJoinEvent e){Bukkit.getScheduler().runTaskLater(plugin,()->{deliverRefunds(e.getPlayer());offerPack(e.getPlayer());activateStaffBoundary(e.getPlayer());},20);}
+
+    /** Phase 3.7: explicitly opt-in, staff-only automatic boundary activation. */
+    private void activateStaffBoundary(Player p) {
+        if(!p.isOnline()||boundaryPreview==null||realmCore==null)return;
+        if(!plugin.getConfig().getBoolean("realm-boundaries.staff-auto.enabled",false))return;
+        if(!access.staff(p)||boundaryPreview.isWatching(p))return;
+        try {
+            var realm=islands.describe(p.getWorld());
+            var anchor=realmCore.expansionAnchor(realm.id());
+            if(anchor==null)return; // Old/unanchored cores require explicit migration, never guess.
+            boundaryPreview.autoUnified(p,anchor);
+        }catch(IllegalStateException notRealm) {
+            // Spawn and other unrelated worlds are expected.
+        }
+    }
+
+    @EventHandler public void enterRealm(PlayerChangedWorldEvent event) {
+        Bukkit.getScheduler().runTaskLater(plugin,()->activateStaffBoundary(event.getPlayer()),20L);
+    }
 
     void offerPack(Player p){String url=plugin.getConfig().getString("realmshards.resource-pack.url","");String hash=plugin.getConfig().getString("realmshards.resource-pack.sha1","");if(url.isBlank())return;if(!url.startsWith("https://")||!hash.matches("[0-9a-fA-F]{40}")){plugin.getLogger().warning("RealmShard pack requires an HTTPS URL and 40-character SHA1.");return;}p.addResourcePack(UUID.fromString("d65df663-4264-4b67-8203-3c9c063f5e21"),url,HexFormat.of().parseHex(hash),"RealmShards models and Realm Forge interface",plugin.getConfig().getBoolean("realmshards.resource-pack.required",true));}
 
