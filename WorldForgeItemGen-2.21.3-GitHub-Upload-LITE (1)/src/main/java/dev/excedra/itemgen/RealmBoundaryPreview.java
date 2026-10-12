@@ -29,6 +29,7 @@ final class RealmBoundaryPreview {
     private final Map<UUID, List<BlockDisplay>> debris = new HashMap<>();
     private final Random random = new Random();
     private final Map<UUID, BukkitTask> watches = new HashMap<>();
+    private final Map<UUID, RealmCoreStore.Anchor> watchedAnchors = new HashMap<>();
     private final java.util.Set<UUID> hybridMode = new java.util.HashSet<>();
     private final JavaPlugin plugin;
     private final IslandBridge islands;
@@ -287,7 +288,52 @@ final class RealmBoundaryPreview {
         watches.put(id, watch);
     }
 
+    /** Explicit staff-only anchored watch; recalculates after terrain changes. */
+    void realmWatch(Player p, int radius, RealmCoreStore.Anchor anchor) {
+        if (anchor==null)throw new IllegalStateException("No registered Realm Core expansion anchor.");
+        if (!anchor.world().equals(p.getWorld().getUID()))throw new IllegalStateException("Core anchor is in another world.");
+        if (!islands.describe(p.getWorld()).id().equals(anchor.realm()))throw new IllegalStateException("Core Realm identity mismatch.");
+        stopWatch(p.getUniqueId());
+        final UUID id=p.getUniqueId();
+        final World world=p.getWorld();
+        final int r=Math.max(12,Math.min(32,radius));
+        watchedAnchors.put(id,anchor);
+        p.sendMessage("§dAnchored Realm watch active. §7Scans Core-centered terrain every 25 seconds; use boundary off to stop.");
+        BukkitTask task=Bukkit.getScheduler().runTaskTimer(plugin,()->{
+            if(!p.isOnline()||p.getWorld()!=world){
+                stopWatch(id);cancel(p);return;
+            }
+            try{
+                hybridMode.add(id);
+                realmTest(p,r,anchor);
+                hybridMode.remove(id);
+            }catch(RuntimeException failure){
+                hybridMode.remove(id);
+                plugin.getLogger().warning("Realm boundary watch failed: "+failure.getMessage());
+                stopWatch(id);cancel(p);
+            }
+        },1L,500L);
+        watches.put(id,task);
+    }
+
+    void terrainChanged(UUID worldId) {
+        for (var entry:new ArrayList<>(watchedAnchors.entrySet())) {
+            UUID id=entry.getKey();
+            RealmCoreStore.Anchor anchor=entry.getValue();
+            if (!anchor.world().equals(worldId))continue;
+            Player p=Bukkit.getPlayer(id);
+            if(p==null||!p.isOnline()||!p.getWorld().getUID().equals(worldId))continue;
+            Bukkit.getScheduler().runTaskLater(plugin,()->{
+                if(watchedAnchors.get(id)!=anchor || !p.isOnline() || !p.getWorld().getUID().equals(worldId))return;
+                try {hybridMode.add(id);realmTest(p,32,anchor);}
+                catch(RuntimeException failure){plugin.getLogger().warning("Boundary recalculation failed: "+failure.getMessage());}
+                finally{hybridMode.remove(id);}
+            },20L);
+        }
+    }
+
     private void stopWatch(UUID id) {
+        watchedAnchors.remove(id);
         BukkitTask task = watches.remove(id);
         if (task != null) task.cancel();
     }
@@ -340,6 +386,7 @@ final class RealmBoundaryPreview {
     void stopAll() {
         for(BukkitTask task:new ArrayList<>(watches.values())) task.cancel();
         watches.clear();
+        watchedAnchors.clear();
         for(BukkitTask task:new ArrayList<>(previews.values())) task.cancel();
         previews.clear();
         for(List<BlockDisplay> displays:new ArrayList<>(debris.values()))
