@@ -31,6 +31,7 @@ final class RealmBoundaryPreview {
     private final Random random = new Random();
     private final Map<UUID, BukkitTask> watches = new HashMap<>();
     private final Map<UUID, RealmCoreStore.Anchor> watchedAnchors = new HashMap<>();
+    private final java.util.Set<UUID> unifiedWatches = new java.util.HashSet<>();
     private final java.util.Set<UUID> hybridMode = new java.util.HashSet<>();
     private final JavaPlugin plugin;
     private final IslandBridge islands;
@@ -143,6 +144,34 @@ final class RealmBoundaryPreview {
      * interior ponds/core voids never qualify as external gaps. No blocks are changed. */
 
     /** Staff-only unified exterior: scanned starter terrain + authoritative completed shard columns. */
+    /** Opt-in staff pilot. Never persisted across server restarts or enabled for players. */
+    void autoUnified(Player p, RealmCoreStore.Anchor anchor) {
+        if(anchor==null)throw new IllegalStateException("No registered Realm Core expansion anchor.");
+        if(!anchor.world().equals(p.getWorld().getUID())
+            ||!islands.describe(p.getWorld()).id().equals(anchor.realm()))
+            throw new IllegalStateException("Realm identity does not match the Core anchor.");
+        stopWatch(p.getUniqueId());
+        final UUID id=p.getUniqueId();
+        final World world=p.getWorld();
+        watchedAnchors.put(id,anchor);
+        unifiedWatches.add(id);
+        p.sendMessage("§dStaff unified boundary pilot enabled. §7Refreshes every 25s; boundary off disables it.");
+        BukkitTask task=Bukkit.getScheduler().runTaskTimer(plugin,()->{
+            if(!p.isOnline()||p.getWorld()!=world) {
+                stopWatch(id);
+                cancel(p);
+                return;
+            }
+            try {unified(p,anchor);}
+            catch(RuntimeException failure) {
+                plugin.getLogger().warning("Stopping unified boundary pilot: "+failure.getMessage());
+                stopWatch(id);
+                cancel(p);
+            }
+        },1L,500L);
+        watches.put(id,task);
+    }
+
     void unified(Player p, RealmCoreStore.Anchor anchor) {
         if(anchor==null)throw new IllegalStateException("No registered Realm Core anchor.");
         World w=p.getWorld();
@@ -499,7 +528,8 @@ final class RealmBoundaryPreview {
             if(p==null||!p.isOnline()||!p.getWorld().getUID().equals(worldId))continue;
             Bukkit.getScheduler().runTaskLater(plugin,()->{
                 if(watchedAnchors.get(id)!=anchor || !p.isOnline() || !p.getWorld().getUID().equals(worldId))return;
-                try {hybridMode.add(id);realmTest(p,32,anchor);}
+                try {if(unifiedWatches.contains(id))unified(p,anchor);
+                    else {hybridMode.add(id);realmTest(p,32,anchor);}}
                 catch(RuntimeException failure){plugin.getLogger().warning("Boundary recalculation failed: "+failure.getMessage());}
                 finally{hybridMode.remove(id);}
             },20L);
@@ -508,6 +538,7 @@ final class RealmBoundaryPreview {
 
     private void stopWatch(UUID id) {
         watchedAnchors.remove(id);
+        unifiedWatches.remove(id);
         BukkitTask task = watches.remove(id);
         if (task != null) task.cancel();
     }
@@ -561,6 +592,7 @@ final class RealmBoundaryPreview {
         for(BukkitTask task:new ArrayList<>(watches.values())) task.cancel();
         watches.clear();
         watchedAnchors.clear();
+        unifiedWatches.clear();
         for(BukkitTask task:new ArrayList<>(previews.values())) task.cancel();
         previews.clear();
         for(List<BlockDisplay> displays:new ArrayList<>(debris.values()))
