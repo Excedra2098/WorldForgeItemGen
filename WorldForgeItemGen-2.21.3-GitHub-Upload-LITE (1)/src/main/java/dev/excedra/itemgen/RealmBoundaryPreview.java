@@ -28,6 +28,7 @@ final class RealmBoundaryPreview {
     private static final Particle.DustOptions PURPLE = new Particle.DustOptions(Color.fromRGB(170, 70, 255), 1.8f);
     private final Map<UUID, List<BlockDisplay>> debris = new HashMap<>();
     private final Random random = new Random();
+    private final Map<UUID, BukkitTask> watches = new HashMap<>();
     private final java.util.Set<UUID> hybridMode = new java.util.HashSet<>();
     private final JavaPlugin plugin;
     private final IslandBridge islands;
@@ -46,6 +47,7 @@ final class RealmBoundaryPreview {
     }
 
     void stop(Player p) {
+        stopWatch(p.getUniqueId());
         BukkitTask prior = previews.remove(p.getUniqueId());
         if (prior != null) prior.cancel();
         clearDebris(p);
@@ -237,9 +239,44 @@ final class RealmBoundaryPreview {
 
     /** Temporary non-solid fragments around detected outer terrain. No blocks modified. */
     void hybrid(Player p, int radius) {
+        stopWatch(p.getUniqueId());
         hybridMode.add(p.getUniqueId());
         perimeter(p, radius);
         hybridMode.remove(p.getUniqueId());
+    }
+
+    /** Explicit staff opt-in only. Recalibrates every 25 seconds on the staff's Realm;
+     * automatically ends when the player leaves the server or changes worlds. */
+    void watch(Player p, int radius) {
+        stopWatch(p.getUniqueId());
+        final World startingWorld = p.getWorld();
+        final UUID id = p.getUniqueId();
+        final int r = Math.max(12, Math.min(32, radius));
+        p.sendMessage("§dBoundary staff watch enabled. §7Refreshing every 25 seconds; use /realmshards boundary off to stop.");
+        // First update must run from the next tick, after the task is registered.
+        BukkitTask watch = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            if (!p.isOnline() || p.getWorld() != startingWorld) {
+                stopWatch(id);
+                cancel(p);
+                return;
+            }
+            try {
+                hybridMode.add(id);
+                perimeter(p, r);
+                hybridMode.remove(id);
+            } catch (RuntimeException failure) {
+                hybridMode.remove(id);
+                plugin.getLogger().warning("Stopping boundary staff watch for " + id + ": " + failure.getMessage());
+                stopWatch(id);
+                cancel(p);
+            }
+        }, 1L, 500L);
+        watches.put(id, watch);
+    }
+
+    private void stopWatch(UUID id) {
+        BukkitTask task = watches.remove(id);
+        if (task != null) task.cancel();
     }
 
     private void createDebris(Player p, World world, List<Location> points, double cx, double cz) {
@@ -288,6 +325,8 @@ final class RealmBoundaryPreview {
     }
 
     void stopAll() {
+        for(BukkitTask task:new ArrayList<>(watches.values())) task.cancel();
+        watches.clear();
         for(BukkitTask task:new ArrayList<>(previews.values())) task.cancel();
         previews.clear();
         for(List<BlockDisplay> displays:new ArrayList<>(debris.values()))
