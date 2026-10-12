@@ -11,6 +11,7 @@ import java.util.Random;
 import org.bukkit.Material;
 import org.bukkit.entity.BlockDisplay;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
@@ -35,6 +36,47 @@ final class RealmBoundaryPreview {
     private final IslandBridge islands;
     private final Map<UUID, BukkitTask> previews = new HashMap<>();
     RealmBoundaryPreview(JavaPlugin plugin, IslandBridge islands) { this.plugin = plugin; this.islands = islands; }
+
+    /** Phase 3.3: read-only inspection of authoritative completed Shard ledgers.
+     * No terrain changes, no player-wide effects, and no guessed land ownership. */
+    void shardFootprints(Player p) {
+        var realm=islands.describe(p.getWorld());
+        Path folder=plugin.getDataFolder().toPath().resolve("shard-transactions");
+        if(!Files.isDirectory(folder)){
+            p.sendMessage("§eNo Shard transaction folder exists yet.");
+            return;
+        }
+        int complete=0, ignored=0, invalid=0, cells=0;
+        java.util.Set<Long> combined=new java.util.HashSet<>();
+        List<GeneratedLand> lands=new ArrayList<>();
+        try(var entries=Files.list(folder)){
+            for(Path file:entries.filter(x->x.getFileName().toString().endsWith(".yml")).sorted().toList()){
+                try {
+                    YamlConfiguration y=YamlConfiguration.loadConfiguration(file.toFile());
+                    if(!GeneratedLand.completedIn(y,p.getWorld().getName(),p.getWorld().getUID(),realm.id())){
+                        ignored++;continue;
+                    }
+                    GeneratedLand land=new GeneratedLand(file,y);
+                    lands.add(land);
+                    complete++;cells+=land.cells.size();
+                    combined.addAll(land.columns);
+                    p.sendMessage("§dShard #"+complete+" §7"+file.getFileName()+" §fX "+land.minX+".."+land.maxX+
+                        " Z "+land.minZ+".."+land.maxZ+" Y "+land.minY+".."+land.maxY+
+                        " §7("+land.columns.size()+" columns)");
+                }catch(RuntimeException bad){
+                    invalid++;
+                    plugin.getLogger().warning("Ignoring invalid boundary diagnostic record "+file.getFileName()+": "+bad.getMessage());
+                }
+            }
+        }catch(java.io.IOException ex){
+            throw new IllegalStateException("Unable to inspect Shard transaction records.",ex);
+        }
+        p.sendMessage("§dRealm footprint diagnostic: §f"+complete+" complete Shard records, "+
+            cells+" generated cells, "+combined.size()+" unique X/Z columns.");
+        p.sendMessage("§7Ignored "+ignored+" nonmatching/inactive records; rejected "+invalid+" invalid records.");
+        p.sendMessage("§7Read-only diagnostics: original starter island is separate; no boundaries changed.");
+        if(complete==0)p.sendMessage("§eNo completed Shard footprint matches this Realm. Make sure the Shard was generated with RealmWeaver.");
+    }
 
     void profiles(Player p) {
         var realm = islands.describe(p.getWorld());
