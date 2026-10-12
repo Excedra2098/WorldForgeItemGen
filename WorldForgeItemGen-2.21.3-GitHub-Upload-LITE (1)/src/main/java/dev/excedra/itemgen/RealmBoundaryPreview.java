@@ -99,12 +99,25 @@ final class RealmBoundaryPreview {
     /** Experimental footprint outline. Only exterior air connected to scan border counts;
      * interior ponds/core voids never qualify as external gaps. No blocks are changed. */
     void perimeter(Player p, int radius) {
+        perimeterAt(p, radius, p.getLocation(), false);
+    }
+
+    void realmTest(Player p, int radius, RealmCoreStore.Anchor anchor) {
+        if(anchor==null)throw new IllegalStateException("This Realm Core has no registered expansion anchor. Staff must migrate/anchor the Core first.");
+        if(!anchor.world().equals(p.getWorld().getUID()))throw new IllegalStateException("Registered Core anchor is in another world; refusing cross-world preview.");
+        var realm=islands.describe(p.getWorld());
+        if(!realm.id().equals(anchor.realm()))throw new IllegalStateException("Core anchor Realm does not match this island record.");
+        p.sendMessage("§dRealm-anchored test: §f"+anchor.realm()+" §7Core at " +anchor.x()+", "+anchor.y()+", "+anchor.z());
+        perimeterAt(p,radius,new Location(p.getWorld(),anchor.x()+.5,anchor.y(),anchor.z()+.5),true);
+    }
+
+    private void perimeterAt(Player p, int radius, Location origin, boolean anchored) {
         islands.describe(p.getWorld());
         cancel(p);
         int r = Math.max(12, Math.min(32, radius));
-        World w = p.getWorld();
-        int cx=p.getLocation().getBlockX(), cz=p.getLocation().getBlockZ();
-        int base=p.getLocation().getBlockY();
+        World w = origin.getWorld();
+        int cx=origin.getBlockX(), cz=origin.getBlockZ();
+        int base=origin.getBlockY();
         int size=2*r+1;
         boolean[][] land=new boolean[size][size];
         boolean[][] outside=new boolean[size][size];
@@ -185,7 +198,7 @@ final class RealmBoundaryPreview {
                 evenlySpaced.add(points.get((int)((long)i*points.size()/maxMarkers)));
             points=evenlySpaced;
         }
-        p.sendMessage("§dExperimental exterior preview: §f"+edges+" perimeter columns, "+points.size()+" evenly distributed markers for 30 seconds.");
+        p.sendMessage((anchored?"§dRealm-anchored exterior preview: §f":"§dExperimental exterior preview: §f")+edges+" perimeter columns, "+points.size()+" evenly distributed markers for 30 seconds.");
         p.sendMessage("§7Structural columns: "+columns+"; scan radius: "+r+"; touches scan limit: "+clipped+". No blocks changed.");
         if(clipped)p.sendMessage("§eSome land reaches the scan boundary. Stand nearer the center; the outline may be incomplete.");
         if(points.isEmpty())p.sendMessage("§eNo exterior positions detected; the terrain may fill the scan or chunks may be unloaded.");
