@@ -141,6 +141,78 @@ final class RealmBoundaryPreview {
 
     /** Experimental footprint outline. Only exterior air connected to scan border counts;
      * interior ponds/core voids never qualify as external gaps. No blocks are changed. */
+
+    /** Staff-only unified exterior: scanned starter terrain + authoritative completed shard columns. */
+    void unified(Player p, RealmCoreStore.Anchor anchor) {
+        if(anchor==null)throw new IllegalStateException("No registered Realm Core anchor.");
+        World w=p.getWorld();
+        if(!anchor.world().equals(w.getUID()) || !islands.describe(w).id().equals(anchor.realm()))
+            throw new IllegalStateException("Realm/Core anchor identity mismatch.");
+        cancel(p);
+        java.util.Map<Long,Integer> heights=new java.util.HashMap<>();
+        java.util.Set<Long> occupied=new java.util.HashSet<>();
+        int cx=anchor.x(),cz=anchor.z(),base=anchor.y();
+        // Starter template: core-centered 32-block structural scan, like the proven preview.
+        for(int x=cx-32;x<=cx+32;x++)for(int z=cz-32;z<=cz+32;z++){
+            if(!w.isChunkLoaded(x>>4,z>>4))continue;
+            for(int y=Math.min(w.getMaxHeight()-2,base+3);y>=Math.max(w.getMinHeight()+1,base-16);y--){
+                Material m=w.getBlockAt(x,y,z).getType();
+                if(m.isSolid()&&w.getBlockAt(x,y-1,z).getType().isSolid()
+                    &&!m.name().contains("LEAVES")&&!m.name().contains("LOG")
+                    &&!m.name().contains("FENCE")&&!m.name().contains("WALL")){
+                    long key=(((long)x)<<32)^(z&0xffffffffL);
+                    occupied.add(key);heights.put(key,y+1);break;
+                }
+            }
+        }
+        Path folder=plugin.getDataFolder().toPath().resolve("shard-transactions");
+        int shards=0,invalid=0;
+        if(Files.isDirectory(folder))try(var files=Files.list(folder)){
+            for(Path file:files.filter(q->q.getFileName().toString().endsWith(".yml")).toList()){
+                try{
+                    YamlConfiguration y=YamlConfiguration.loadConfiguration(file.toFile());
+                    if(!GeneratedLand.completedIn(y,w.getName(),w.getUID(),anchor.realm()))continue;
+                    GeneratedLand land=new GeneratedLand(file,y);
+                    for(var cell:land.cells){
+                        var pos=cell.pos();
+                        long key=(((long)pos.x())<<32)^(pos.z()&0xffffffffL);
+                        occupied.add(key);
+                        heights.merge(key,pos.y()+1,Math::max);
+                    }
+                    shards++;
+                }catch(RuntimeException error){invalid++;plugin.getLogger().warning("Boundary ignored invalid shard "+file.getFileName()+": "+error.getMessage());}
+            }
+        }catch(java.io.IOException error){throw new IllegalStateException("Could not read shard footprint ledger.",error);}
+        // Only columns with open void-facing cardinal neighbors are exterior.
+        List<Location> edges=new ArrayList<>();
+        int[][] dirs={{1,0},{-1,0},{0,1},{0,-1}};
+        for(long key:occupied){
+            int x=(int)(key>>32),z=(int)key;
+            boolean exterior=false;
+            for(int[] d:dirs){
+                long adjacent=(((long)(x+d[0]))<<32)^((z+d[1])&0xffffffffL);
+                if(!occupied.contains(adjacent)){exterior=true;break;}
+            }
+            if(exterior&&w.isChunkLoaded(x>>4,z>>4))
+                edges.add(new Location(w,x+.5,heights.get(key)+.1,z+.5));
+        }
+        edges.sort(java.util.Comparator.comparingDouble(loc->{
+            double a=Math.atan2(loc.getZ()-(cz+.5),loc.getX()-(cx+.5));
+            return a<0?a+Math.PI*2:a;
+        }));
+        if(edges.size()>160){
+            List<Location> selected=new ArrayList<>();
+            for(int i=0;i<160;i++)selected.add(edges.get((int)((long)i*edges.size()/160)));
+            edges=selected;
+        }
+        p.sendMessage("§dUnified Realm preview: §f"+shards+" completed shards; "+occupied.size()+" occupied columns; "+edges.size()+" exterior markers; "+invalid+" rejected records.");
+        p.sendMessage("§7Read-only 30-second preview. Starter scan remains 32 blocks; shard footprints may extend beyond it.");
+        if(!edges.isEmpty()){
+            animateEnhanced(p,w,edges,cx+.5,cz+.5);
+            createDebris(p,w,edges,cx+.5,cz+.5);
+        }
+    }
+
     void perimeter(Player p, int radius) {
         perimeterAt(p, radius, p.getLocation(), false);
     }
