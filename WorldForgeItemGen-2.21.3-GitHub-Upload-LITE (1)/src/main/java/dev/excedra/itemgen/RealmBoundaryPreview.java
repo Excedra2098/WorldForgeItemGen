@@ -145,6 +145,8 @@ final class RealmBoundaryPreview {
 
     /** Staff-only unified exterior: scanned starter terrain + authoritative completed shard columns. */
     /** Opt-in staff pilot. Never persisted across server restarts or enabled for players. */
+    boolean isWatching(Player p) { return watches.containsKey(p.getUniqueId()); }
+
     void autoUnified(Player p, RealmCoreStore.Anchor anchor) {
         if(anchor==null)throw new IllegalStateException("No registered Realm Core expansion anchor.");
         if(!anchor.world().equals(p.getWorld().getUID())
