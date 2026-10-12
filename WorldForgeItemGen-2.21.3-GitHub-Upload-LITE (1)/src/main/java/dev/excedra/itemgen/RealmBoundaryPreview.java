@@ -183,18 +183,23 @@ final class RealmBoundaryPreview {
                 }catch(RuntimeException error){invalid++;plugin.getLogger().warning("Boundary ignored invalid shard "+file.getFileName()+": "+error.getMessage());}
             }
         }catch(java.io.IOException error){throw new IllegalStateException("Could not read shard footprint ledger.",error);}
-        // Only columns with open void-facing cardinal neighbors are exterior.
+        // Each exposed face has its own outward normal. Emit the anchor beyond
+        // the face and BELOW the surface, never above walkable snow or grass.
         List<Location> edges=new ArrayList<>();
         int[][] dirs={{1,0},{-1,0},{0,1},{0,-1}};
+        int exposedFaces=0;
         for(long key:occupied){
             int x=(int)(key>>32),z=(int)key;
-            boolean exterior=false;
             for(int[] d:dirs){
                 long adjacent=(((long)(x+d[0]))<<32)^((z+d[1])&0xffffffffL);
-                if(!occupied.contains(adjacent)){exterior=true;break;}
+                if(occupied.contains(adjacent))continue;
+                exposedFaces++;
+                if(!w.isChunkLoaded(x>>4,z>>4))continue;
+                double px=x+.5+d[0]*.94,pz=z+.5+d[1]*.94;
+                // The face anchor is about 0.9 blocks below the top; the
+                // pre-existing animation offsets now remain on the void side.
+                edges.add(new Location(w,px,heights.get(key)-.8,pz));
             }
-            if(exterior&&w.isChunkLoaded(x>>4,z>>4))
-                edges.add(new Location(w,x+.5,heights.get(key)+.1,z+.5));
         }
         edges.sort(java.util.Comparator.comparingDouble(loc->{
             double a=Math.atan2(loc.getZ()-(cz+.5),loc.getX()-(cx+.5));
@@ -205,12 +210,67 @@ final class RealmBoundaryPreview {
             for(int i=0;i<160;i++)selected.add(edges.get((int)((long)i*edges.size()/160)));
             edges=selected;
         }
-        p.sendMessage("§dUnified Realm preview: §f"+shards+" completed shards; "+occupied.size()+" occupied columns; "+edges.size()+" exterior markers; "+invalid+" rejected records.");
-        p.sendMessage("§7Read-only 30-second preview. Starter scan remains 32 blocks; shard footprints may extend beyond it.");
+        p.sendMessage("§dEdge-aware unified preview: §f"+shards+" Shards; "+occupied.size()+" columns; "+
+            exposedFaces+" exterior faces; "+edges.size()+" visual markers; "+invalid+" rejected records.");
+        p.sendMessage("§7Preview only: outward face offsets, below the terrain surface; 30 seconds.");
         if(!edges.isEmpty()){
-            animateEnhanced(p,w,edges,cx+.5,cz+.5);
-            createDebris(p,w,edges,cx+.5,cz+.5);
+            animateUnifiedEdges(p,w,edges);
+            createUnifiedDebris(p,w,edges);
         }
+    }
+
+    private void animateUnifiedEdges(Player p,World w,List<Location> edges){
+        UUID id=p.getUniqueId();
+        int[] tick={0};
+        Particle.DustOptions bright=new Particle.DustOptions(Color.fromRGB(185,65,255),2.1f);
+        Particle.DustOptions dark=new Particle.DustOptions(Color.fromRGB(100,40,205),1.6f);
+        BukkitTask task=Bukkit.getScheduler().runTaskTimer(plugin,()->{
+            if(!p.isOnline()||p.getWorld()!=w||tick[0]++>=60){
+                BukkitTask running=previews.remove(id);
+                if(running!=null)running.cancel();
+                clearDebris(p);return;
+            }
+            for(Location at:edges){
+                if(at.distanceSquared(p.getLocation())>56*56)continue;
+                if(!w.isChunkLoaded(at.getBlockX()>>4,at.getBlockZ()>>4))continue;
+                p.spawnParticle(Particle.DUST,at,3,.1,.12,.1,0,bright);
+                p.spawnParticle(Particle.DUST,at.clone().add(0,-.9,0),3,.17,.2,.17,0,dark);
+                if((tick[0]&1)==0)p.spawnParticle(Particle.PORTAL,at.clone().add(0,-1.6,0),1,.13,.25,.13,.01);
+            }
+        },0L,10L);
+        previews.put(id,task);
+    }
+
+    private void createUnifiedDebris(Player p,World w,List<Location> edges){
+        clearDebris(p);
+        List<BlockDisplay> spawned=new ArrayList<>();
+        int count=Math.min(18,Math.max(6,edges.size()/9));
+        for(int i=0;i<count;i++){
+            Location face=edges.get((int)((long)i*edges.size()/count));
+            // Edge marker is already outside the real terrain face.
+            Location at=face.clone().add(0,-1.4-random.nextDouble()*2.1,0);
+            if(!w.isChunkLoaded(at.getBlockX()>>4,at.getBlockZ()>>4)
+                ||!w.getBlockAt(at).getType().isAir())continue;
+            Material block=(i%6==0)?Material.AMETHYST_BLOCK:
+                (i%2==0?Material.COBBLED_DEEPSLATE:Material.CRACKED_STONE_BRICKS);
+            BlockData data=block.createBlockData();
+            float scale=.52f+random.nextFloat()*.42f;
+            BlockDisplay display=w.spawn(at,BlockDisplay.class,d->{
+                d.setPersistent(false);d.setGravity(false);d.setInvulnerable(true);
+                d.addScoreboardTag("worldforge_boundary_preview");
+                d.setBlock(data);
+                d.setTransformation(new org.bukkit.util.Transformation(
+                    new org.joml.Vector3f(-scale/2,-scale/2,-scale/2),
+                    new org.joml.AxisAngle4f(random.nextFloat()*6.28f,0,1,0),
+                    new org.joml.Vector3f(scale,scale,scale),
+                    new org.joml.AxisAngle4f()));
+            });
+            spawned.add(display);
+        }
+        debris.put(p.getUniqueId(),spawned);
+        Bukkit.getScheduler().runTaskLater(plugin,()->{
+            if(debris.get(p.getUniqueId())==spawned)clearDebris(p);
+        },600L);
     }
 
     void perimeter(Player p, int radius) {
