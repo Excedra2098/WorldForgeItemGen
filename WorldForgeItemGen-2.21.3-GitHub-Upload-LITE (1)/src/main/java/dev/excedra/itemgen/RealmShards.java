@@ -863,17 +863,27 @@ final class RealmShards implements Listener, CommandExecutor, TabCompleter {
     @EventHandler public void join(PlayerJoinEvent e){Bukkit.getScheduler().runTaskLater(plugin,()->{deliverRefunds(e.getPlayer());offerPack(e.getPlayer());activateStaffBoundary(e.getPlayer());},20);}
 
     /** Phase 3.7: explicitly opt-in, staff-only automatic boundary activation. */
+    /** Opt-in staff and UUID-allowlisted player Realm boundaries; no global activation. */
     private void activateStaffBoundary(Player p) {
-        if(!p.isOnline()||boundaryPreview==null||realmCore==null)return;
-        if(!plugin.getConfig().getBoolean("realm-boundaries.staff-auto.enabled",false))return;
-        if(!access.staff(p)||boundaryPreview.isWatching(p))return;
+        if(!p.isOnline()||boundaryPreview==null||realmCore==null||boundaryPreview.isWatching(p))return;
+        boolean staff=access.staff(p);
+        if(staff) {
+            if(!plugin.getConfig().getBoolean("realm-boundaries.staff-auto.enabled",false))return;
+        } else {
+            if(!plugin.getConfig().getBoolean("realm-boundaries.player-pilot.enabled",false))return;
+            if(!plugin.getConfig().getStringList("realm-boundaries.player-pilot.allowed-uuids")
+                .contains(p.getUniqueId().toString()))return;
+        }
+        if(!boundaryPreview.hasAutoCapacity())return;
         try {
             var realm=islands.describe(p.getWorld());
+            // Allowlisted players can activate only in their own registered Realm.
+            if(!staff && !realm.owner().equals(p.getUniqueId()))return;
             var anchor=realmCore.expansionAnchor(realm.id());
-            if(anchor==null)return; // Old/unanchored cores require explicit migration, never guess.
+            if(anchor==null)return;
             boundaryPreview.autoUnified(p,anchor);
         }catch(IllegalStateException notRealm) {
-            // Spawn and other unrelated worlds are expected.
+            // World spawn or an unregistered island is not a boundary target.
         }
     }
 
