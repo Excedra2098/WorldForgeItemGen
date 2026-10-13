@@ -85,3 +85,9 @@ realm-boundaries:
     enabled: false
     max-active: 4
     allowed-uuids: []
+
+  # Phase 3.9: viewer-local particle range and bounded unified preview work.
+  performance:
+    render-distance: 56
+    max-edge-markers: 160
+    max-debris-per-viewer: 18
