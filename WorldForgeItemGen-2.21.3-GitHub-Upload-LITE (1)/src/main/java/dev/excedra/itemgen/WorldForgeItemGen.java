@@ -266,7 +266,7 @@ Listener {
 
         realmShards.start();
 
-        this.getLogger().info("WorldForge ItemGen v2.7.2 enabled with " + this.items.size() + " custom item(s).");
+        this.getLogger().info("WorldForge ItemGen v" + this.getPluginMeta().getVersion() + " enabled with " + this.items.size() + " custom item(s).");
 
     }
 
