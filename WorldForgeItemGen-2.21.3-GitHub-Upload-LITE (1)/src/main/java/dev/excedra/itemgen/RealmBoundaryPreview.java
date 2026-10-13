@@ -29,6 +29,8 @@ final class RealmBoundaryPreview {
     private static final Particle.DustOptions PURPLE = new Particle.DustOptions(Color.fromRGB(170, 70, 255), 1.8f);
     private final Map<UUID, List<BlockDisplay>> debris = new HashMap<>();
     private final Random random = new Random();
+    private record LedgerSnapshot(long expiresAt, Map<Long,Integer> heights, int shards, int invalid) {}
+    private final Map<UUID,LedgerSnapshot> ledgerCache = new HashMap<>();
     private final Map<UUID, BukkitTask> watches = new HashMap<>();
     private final Map<UUID, RealmCoreStore.Anchor> watchedAnchors = new HashMap<>();
     private final java.util.Set<UUID> unifiedWatches = new java.util.HashSet<>();
@@ -183,6 +185,35 @@ final class RealmBoundaryPreview {
     private int debrisLimit() { return Math.max(0,Math.min(18,plugin.getConfig().getInt("realm-boundaries.performance.max-debris-per-viewer",18))); }
     private int edgeLimit() { return Math.max(32,Math.min(160,plugin.getConfig().getInt("realm-boundaries.performance.max-edge-markers",160))); }
 
+    /** Reuse read-only shard ledger footprints across simultaneous viewers for 10s.
+     * Explicit placement events invalidate immediately; periodic refresh rescans after TTL. */
+    private LedgerSnapshot ledgerSnapshot(World w,RealmCoreStore.Anchor anchor) {
+        long now=System.currentTimeMillis();
+        LedgerSnapshot cached=ledgerCache.get(anchor.realm());
+        if(cached!=null&&cached.expiresAt()>now)return cached;
+        Map<Long,Integer> heights=new HashMap<>();
+        int shards=0,invalid=0;
+        Path folder=plugin.getDataFolder().toPath().resolve("shard-transactions");
+        if(Files.isDirectory(folder))try(var files=Files.list(folder)){
+            for(Path file:files.filter(q->q.getFileName().toString().endsWith(".yml")).toList()){
+                try{
+                    YamlConfiguration y=YamlConfiguration.loadConfiguration(file.toFile());
+                    if(!GeneratedLand.completedIn(y,w.getName(),w.getUID(),anchor.realm()))continue;
+                    GeneratedLand land=new GeneratedLand(file,y);
+                    for(var cell:land.cells){
+                        var pos=cell.pos();
+                        long key=(((long)pos.x())<<32)^(pos.z()&0xffffffffL);
+                        heights.merge(key,pos.y()+1,Math::max);
+                    }
+                    shards++;
+                }catch(RuntimeException error){invalid++;plugin.getLogger().warning("Boundary ignored invalid shard "+file.getFileName()+": "+error.getMessage());}
+            }
+        }catch(java.io.IOException error){throw new IllegalStateException("Could not read shard footprint ledger.",error);}
+        LedgerSnapshot result=new LedgerSnapshot(now+10_000L,heights,shards,invalid);
+        ledgerCache.put(anchor.realm(),result);
+        return result;
+    }
+
     void unified(Player p, RealmCoreStore.Anchor anchor) {
         if(anchor==null)throw new IllegalStateException("No registered Realm Core anchor.");
         World w=p.getWorld();
@@ -205,24 +236,12 @@ final class RealmBoundaryPreview {
                 }
             }
         }
-        Path folder=plugin.getDataFolder().toPath().resolve("shard-transactions");
-        int shards=0,invalid=0;
-        if(Files.isDirectory(folder))try(var files=Files.list(folder)){
-            for(Path file:files.filter(q->q.getFileName().toString().endsWith(".yml")).toList()){
-                try{
-                    YamlConfiguration y=YamlConfiguration.loadConfiguration(file.toFile());
-                    if(!GeneratedLand.completedIn(y,w.getName(),w.getUID(),anchor.realm()))continue;
-                    GeneratedLand land=new GeneratedLand(file,y);
-                    for(var cell:land.cells){
-                        var pos=cell.pos();
-                        long key=(((long)pos.x())<<32)^(pos.z()&0xffffffffL);
-                        occupied.add(key);
-                        heights.merge(key,pos.y()+1,Math::max);
-                    }
-                    shards++;
-                }catch(RuntimeException error){invalid++;plugin.getLogger().warning("Boundary ignored invalid shard "+file.getFileName()+": "+error.getMessage());}
-            }
-        }catch(java.io.IOException error){throw new IllegalStateException("Could not read shard footprint ledger.",error);}
+        LedgerSnapshot snapshot=ledgerSnapshot(w,anchor);
+        int shards=snapshot.shards(), invalid=snapshot.invalid();
+        for(var entry:snapshot.heights().entrySet()){
+            occupied.add(entry.getKey());
+            heights.merge(entry.getKey(),entry.getValue(),Math::max);
+        }
         // Each exposed face has its own outward normal. Emit the anchor beyond
         // the face and BELOW the surface, never above walkable snow or grass.
         List<Location> edges=new ArrayList<>();
@@ -300,6 +319,7 @@ final class RealmBoundaryPreview {
             float scale=.52f+random.nextFloat()*.42f;
             BlockDisplay display=w.spawn(at,BlockDisplay.class,d->{
                 d.setPersistent(false);d.setGravity(false);d.setInvulnerable(true);
+                d.setVisibleByDefault(false);
                 d.addScoreboardTag("worldforge_boundary_preview");
                 d.setBlock(data);
                 d.setTransformation(new org.bukkit.util.Transformation(
@@ -308,6 +328,7 @@ final class RealmBoundaryPreview {
                     new org.joml.Vector3f(scale,scale,scale),
                     new org.joml.AxisAngle4f()));
             });
+            p.showEntity(plugin,display);
             spawned.add(display);
         }
         debris.put(p.getUniqueId(),spawned);
@@ -534,6 +555,7 @@ final class RealmBoundaryPreview {
     }
 
     void terrainChanged(UUID worldId) {
+        ledgerCache.clear();
         for (var entry:new ArrayList<>(watchedAnchors.entrySet())) {
             UUID id=entry.getKey();
             RealmCoreStore.Anchor anchor=entry.getValue();
@@ -603,6 +625,7 @@ final class RealmBoundaryPreview {
     }
 
     void stopAll() {
+        ledgerCache.clear();
         for(BukkitTask task:new ArrayList<>(watches.values())) task.cancel();
         watches.clear();
         watchedAnchors.clear();
