@@ -146,18 +146,23 @@ final class RealmBoundaryPreview {
     /** Staff-only unified exterior: scanned starter terrain + authoritative completed shard columns. */
     /** Opt-in staff pilot. Never persisted across server restarts or enabled for players. */
     boolean isWatching(Player p) { return watches.containsKey(p.getUniqueId()); }
+    boolean hasAutoCapacity() {
+        int limit=Math.max(1,Math.min(16,plugin.getConfig().getInt("realm-boundaries.player-pilot.max-active",4)));
+        return unifiedWatches.size()<limit;
+    }
 
     void autoUnified(Player p, RealmCoreStore.Anchor anchor) {
         if(anchor==null)throw new IllegalStateException("No registered Realm Core expansion anchor.");
         if(!anchor.world().equals(p.getWorld().getUID())
             ||!islands.describe(p.getWorld()).id().equals(anchor.realm()))
             throw new IllegalStateException("Realm identity does not match the Core anchor.");
+        if(!isWatching(p)&&!hasAutoCapacity())throw new IllegalStateException("Automatic boundary pilot session limit reached.");
         stopWatch(p.getUniqueId());
         final UUID id=p.getUniqueId();
         final World world=p.getWorld();
         watchedAnchors.put(id,anchor);
         unifiedWatches.add(id);
-        p.sendMessage("§dStaff unified boundary pilot enabled. §7Refreshes every 25s; boundary off disables it.");
+        p.sendMessage("§dUnified Realm boundary pilot enabled. §7Refreshes every 25s; boundary off disables it.");
         BukkitTask task=Bukkit.getScheduler().runTaskTimer(plugin,()->{
             if(!p.isOnline()||p.getWorld()!=world) {
                 stopWatch(id);
