@@ -91,3 +91,8 @@ realm-boundaries:
     render-distance: 56
     max-edge-markers: 160
     max-debris-per-viewer: 18
+
+  # Enable only AFTER actual non-staff multiplayer and visibility checks.
+  # Public activation still requires an owned Realm, registered Core, and free session capacity.
+  public-release:
+    enabled: false
