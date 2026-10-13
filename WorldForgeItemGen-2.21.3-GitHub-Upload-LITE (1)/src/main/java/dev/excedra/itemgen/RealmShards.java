@@ -213,6 +213,7 @@ final class RealmShards implements Listener, CommandExecutor, TabCompleter {
                 if(args.length<2)throw new IllegalArgumentException("/realmshards boundary <profiles|preview [radius]|perimeter [radius]|hybrid [radius]|watch [radius]|realmtest [radius]|realmwatch [radius]|footprints|unified|autounified|test|off|status>");
                 switch(args[1].toLowerCase(Locale.ROOT)){
                     case "simulate" -> simulateBoundary(p,args.length>2?args[2].toLowerCase(Locale.ROOT):"");
+                    case "diagnostics" -> boundaryPreview.diagnostics(p);
                     case "profiles" -> boundaryPreview.profiles(p);
                     case "preview" -> boundaryPreview.preview(p,args.length>2?Integer.parseInt(args[2]):24);
                     case "test" -> boundaryPreview.test(p);
@@ -294,7 +295,7 @@ final class RealmShards implements Listener, CommandExecutor, TabCompleter {
 
         if(a.length==1){List<String> commands=new ArrayList<>(List.of("menu","preview","give","roll","testremove","testremoveall","boundary"));if(s instanceof ConsoleCommandSender)commands.add("claim");if(s instanceof Player p&&access.owner(p))commands.addAll(List.of("schematics","testtools"));return commands.stream().filter(v->v.startsWith(a[0].toLowerCase(Locale.ROOT))).toList();}
 
-        if(a.length==2&&a[0].equalsIgnoreCase("boundary"))return List.of("profiles","preview","perimeter","hybrid","watch","realmtest","realmwatch","footprints","unified","autounified","test","off","status","simulate").stream().filter(v->v.startsWith(a[1].toLowerCase(Locale.ROOT))).toList();
+        if(a.length==2&&a[0].equalsIgnoreCase("boundary"))return List.of("profiles","preview","perimeter","hybrid","watch","realmtest","realmwatch","footprints","unified","autounified","test","off","status","simulate","diagnostics").stream().filter(v->v.startsWith(a[1].toLowerCase(Locale.ROOT))).toList();
 
         if(a.length==3&&a[0].equalsIgnoreCase("boundary")&&a[1].equalsIgnoreCase("simulate"))return List.of("allowed","denied","capacity","ownership").stream().filter(v->v.startsWith(a[2].toLowerCase(Locale.ROOT))).toList();
 
@@ -913,7 +914,12 @@ final class RealmShards implements Listener, CommandExecutor, TabCompleter {
     }
 
     @EventHandler public void enterRealm(PlayerChangedWorldEvent event) {
+        if(boundaryPreview!=null)boundaryPreview.disconnect(event.getPlayer());
         Bukkit.getScheduler().runTaskLater(plugin,()->activateStaffBoundary(event.getPlayer()),20L);
+    }
+
+    @EventHandler public void boundaryQuit(PlayerQuitEvent event) {
+        if(boundaryPreview!=null)boundaryPreview.disconnect(event.getPlayer());
     }
 
     void offerPack(Player p){String url=plugin.getConfig().getString("realmshards.resource-pack.url","");String hash=plugin.getConfig().getString("realmshards.resource-pack.sha1","");if(url.isBlank())return;if(!url.startsWith("https://")||!hash.matches("[0-9a-fA-F]{40}")){plugin.getLogger().warning("RealmShard pack requires an HTTPS URL and 40-character SHA1.");return;}p.addResourcePack(UUID.fromString("d65df663-4264-4b67-8203-3c9c063f5e21"),url,HexFormat.of().parseHex(hash),"RealmShards models and Realm Forge interface",plugin.getConfig().getBoolean("realmshards.resource-pack.required",true));}
