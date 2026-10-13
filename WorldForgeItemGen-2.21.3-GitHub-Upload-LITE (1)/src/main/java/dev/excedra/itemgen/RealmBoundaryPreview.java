@@ -148,6 +148,12 @@ final class RealmBoundaryPreview {
     /** Staff-only unified exterior: scanned starter terrain + authoritative completed shard columns. */
     /** Opt-in staff pilot. Never persisted across server restarts or enabled for players. */
     boolean isWatching(Player p) { return watches.containsKey(p.getUniqueId()); }
+    void diagnostics(Player p) {
+        int displays=debris.values().stream().mapToInt(List::size).sum();
+        p.sendMessage("§dBoundary diagnostics §7— active watches: §f"+watches.size()+" §7(unified: §f"+unifiedWatches.size()+"§7), debris: §f"+displays);
+        p.sendMessage("§7Ledger caches: §f"+ledgerCache.size()+" §7| active previews: §f"+previews.size()+" §7| capacity available: §f"+hasAutoCapacity());
+        p.sendMessage("§7Range: §f"+renderDistance()+" §7| edge cap: §f"+edgeLimit()+" §7| debris cap: §f"+debrisLimit());
+    }
     boolean hasAutoCapacity() {
         int limit=Math.max(1,Math.min(16,plugin.getConfig().getInt("realm-boundaries.player-pilot.max-active",4)));
         return unifiedWatches.size()<limit;
@@ -623,6 +629,8 @@ final class RealmBoundaryPreview {
         }, 600L);
         p.sendMessage("§dHybrid preview: §f"+spawned.size()+" temporary floating fragments; automatically cleared in 30 seconds.");
     }
+
+    void disconnect(Player p) { stop(p); }
 
     void stopAll() {
         ledgerCache.clear();
