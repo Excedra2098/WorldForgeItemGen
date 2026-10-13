@@ -37,6 +37,9 @@ jobs:
           grep -Fq 'Your saved appearance changes only after Apply.' src/main/java/dev/excedra/itemgen/CoreCustomization.java
           grep -Fq 'Ready to forge' src/main/java/dev/excedra/itemgen/RealmweaverWand.java
           grep -Fq 'Your placement selection expired.' src/main/java/dev/excedra/itemgen/RealmweaverWand.java
+      - name: Run Special Shard C1 registry regression checks
+        working-directory: 'WorldForgeItemGen-2.21.3-GitHub-Upload-LITE (1)'
+        run: mvn --batch-mode --no-transfer-progress org.codehaus.mojo:exec-maven-plugin:3.5.0:java -Dexec.classpathScope=test -Dexec.mainClass=dev.excedra.itemgen.SpecialShardRegistryVerification
       - name: Verify plugin descriptor is bundled
         working-directory: 'WorldForgeItemGen-2.21.3-GitHub-Upload-LITE (1)'
         run: |
@@ -46,6 +49,6 @@ jobs:
           unzip -p "$JAR" plugin.yml | tr -d '\r' | grep -qx 'version: 2.21.4-rc1'
       - uses: actions/upload-artifact@v4
         with:
-          name: WorldForgeItemGen-2.21.4-rc1-release-A
+          name: WorldForgeItemGen-2.21.4-rc1-C1-inert-registry-UNTESTED
           path: 'WorldForgeItemGen-2.21.3-GitHub-Upload-LITE (1)/target/*.jar'
           if-no-files-found: error
