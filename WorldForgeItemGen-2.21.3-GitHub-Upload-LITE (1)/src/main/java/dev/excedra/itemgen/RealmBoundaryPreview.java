@@ -179,6 +179,10 @@ final class RealmBoundaryPreview {
         watches.put(id,task);
     }
 
+    private int renderDistance() { return Math.max(16,Math.min(96,plugin.getConfig().getInt("realm-boundaries.performance.render-distance",56))); }
+    private int debrisLimit() { return Math.max(0,Math.min(18,plugin.getConfig().getInt("realm-boundaries.performance.max-debris-per-viewer",18))); }
+    private int edgeLimit() { return Math.max(32,Math.min(160,plugin.getConfig().getInt("realm-boundaries.performance.max-edge-markers",160))); }
+
     void unified(Player p, RealmCoreStore.Anchor anchor) {
         if(anchor==null)throw new IllegalStateException("No registered Realm Core anchor.");
         World w=p.getWorld();
@@ -241,9 +245,10 @@ final class RealmBoundaryPreview {
             double a=Math.atan2(loc.getZ()-(cz+.5),loc.getX()-(cx+.5));
             return a<0?a+Math.PI*2:a;
         }));
-        if(edges.size()>160){
+        int edgeCap=edgeLimit();
+        if(edges.size()>edgeCap){
             List<Location> selected=new ArrayList<>();
-            for(int i=0;i<160;i++)selected.add(edges.get((int)((long)i*edges.size()/160)));
+            for(int i=0;i<edgeCap;i++)selected.add(edges.get((int)((long)i*edges.size()/edgeCap)));
             edges=selected;
         }
         p.sendMessage("§dEdge-aware unified preview: §f"+shards+" Shards; "+occupied.size()+" columns; "+
@@ -260,6 +265,7 @@ final class RealmBoundaryPreview {
         int[] tick={0};
         Particle.DustOptions bright=new Particle.DustOptions(Color.fromRGB(185,65,255),2.1f);
         Particle.DustOptions dark=new Particle.DustOptions(Color.fromRGB(100,40,205),1.6f);
+        final double maxDistanceSquared=(double)renderDistance()*renderDistance();
         BukkitTask task=Bukkit.getScheduler().runTaskTimer(plugin,()->{
             if(!p.isOnline()||p.getWorld()!=w||tick[0]++>=60){
                 BukkitTask running=previews.remove(id);
@@ -267,7 +273,7 @@ final class RealmBoundaryPreview {
                 clearDebris(p);return;
             }
             for(Location at:edges){
-                if(at.distanceSquared(p.getLocation())>56*56)continue;
+                if(at.distanceSquared(p.getLocation())>maxDistanceSquared)continue;
                 if(!w.isChunkLoaded(at.getBlockX()>>4,at.getBlockZ()>>4))continue;
                 p.spawnParticle(Particle.DUST,at,3,.1,.12,.1,0,bright);
                 p.spawnParticle(Particle.DUST,at.clone().add(0,-.9,0),3,.17,.2,.17,0,dark);
@@ -280,9 +286,10 @@ final class RealmBoundaryPreview {
     private void createUnifiedDebris(Player p,World w,List<Location> edges){
         clearDebris(p);
         List<BlockDisplay> spawned=new ArrayList<>();
-        int count=Math.min(18,Math.max(6,edges.size()/9));
+        int count=Math.min(debrisLimit(),Math.min(18,Math.max(6,edges.size()/9)));
         for(int i=0;i<count;i++){
             Location face=edges.get((int)((long)i*edges.size()/count));
+            if(face.distanceSquared(p.getLocation())>(double)renderDistance()*renderDistance())continue;
             // Edge marker is already outside the real terrain face.
             Location at=face.clone().add(0,-1.4-random.nextDouble()*2.1,0);
             if(!w.isChunkLoaded(at.getBlockX()>>4,at.getBlockZ()>>4)
