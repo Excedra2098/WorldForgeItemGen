@@ -213,7 +213,11 @@ final class RealmShards implements Listener, CommandExecutor, TabCompleter {
                 if(args.length<2)throw new IllegalArgumentException("/realmshards boundary <profiles|preview [radius]|perimeter [radius]|hybrid [radius]|watch [radius]|realmtest [radius]|realmwatch [radius]|footprints|unified|autounified|test|off|status>");
                 switch(args[1].toLowerCase(Locale.ROOT)){
                     case "simulate" -> simulateBoundary(p,args.length>2?args[2].toLowerCase(Locale.ROOT):"");
-                    case "diagnostics" -> boundaryPreview.diagnostics(p);
+                    case "diagnostics" -> {
+                        boundaryPreview.diagnostics(p);
+                        p.sendMessage("§7Public boundary release: §f"+plugin.getConfig().getBoolean("realm-boundaries.public-release.enabled",false)
+                            +" §7| Player pilot: §f"+plugin.getConfig().getBoolean("realm-boundaries.player-pilot.enabled",false));
+                    }
                     case "profiles" -> boundaryPreview.profiles(p);
                     case "preview" -> boundaryPreview.preview(p,args.length>2?Integer.parseInt(args[2]):24);
                     case "test" -> boundaryPreview.test(p);
@@ -874,9 +878,12 @@ final class RealmShards implements Listener, CommandExecutor, TabCompleter {
         if(staff) {
             if(!plugin.getConfig().getBoolean("realm-boundaries.staff-auto.enabled",false))return;
         } else {
-            if(!plugin.getConfig().getBoolean("realm-boundaries.player-pilot.enabled",false))return;
-            if(!plugin.getConfig().getStringList("realm-boundaries.player-pilot.allowed-uuids")
-                .contains(p.getUniqueId().toString()))return;
+            // Public release remains explicitly disabled until genuine multiplayer validation.
+            boolean publicRelease=plugin.getConfig().getBoolean("realm-boundaries.public-release.enabled",false);
+            boolean pilot=plugin.getConfig().getBoolean("realm-boundaries.player-pilot.enabled",false)
+                && plugin.getConfig().getStringList("realm-boundaries.player-pilot.allowed-uuids")
+                    .contains(p.getUniqueId().toString());
+            if(!publicRelease&&!pilot)return;
         }
         if(!boundaryPreview.hasAutoCapacity())return;
         try {
