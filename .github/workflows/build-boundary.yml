@@ -27,6 +27,16 @@ jobs:
       - name: Run Realmweaver inventory regression verification
         working-directory: 'WorldForgeItemGen-2.21.3-GitHub-Upload-LITE (1)'
         run: mvn --batch-mode --no-transfer-progress org.codehaus.mojo:exec-maven-plugin:3.5.0:java -Dexec.classpathScope=test -Dexec.mainClass=dev.excedra.itemgen.RealmweaverVerification
+      - name: Run Core fragment behavior regression verification
+        working-directory: 'WorldForgeItemGen-2.21.3-GitHub-Upload-LITE (1)'
+        run: mvn --batch-mode --no-transfer-progress org.codehaus.mojo:exec-maven-plugin:3.5.0:java -Dexec.classpathScope=test -Dexec.mainClass=dev.excedra.itemgen.CoreFragmentVerification
+      - name: Verify Release B GUI wording contracts
+        working-directory: 'WorldForgeItemGen-2.21.3-GitHub-Upload-LITE (1)'
+        run: |
+          grep -Fq 'Unsaved selection:' src/main/java/dev/excedra/itemgen/CoreCustomization.java
+          grep -Fq 'Your saved appearance changes only after Apply.' src/main/java/dev/excedra/itemgen/CoreCustomization.java
+          grep -Fq 'Ready to forge' src/main/java/dev/excedra/itemgen/RealmweaverWand.java
+          grep -Fq 'Your placement selection expired.' src/main/java/dev/excedra/itemgen/RealmweaverWand.java
       - name: Verify plugin descriptor is bundled
         working-directory: 'WorldForgeItemGen-2.21.3-GitHub-Upload-LITE (1)'
         run: |
