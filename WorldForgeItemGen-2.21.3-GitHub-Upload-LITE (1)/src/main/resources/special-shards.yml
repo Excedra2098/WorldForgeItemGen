@@ -1,0 +1,4 @@
+# Inert C1 authoring schema. Not read by the live plugin.
+schema-version: 1
+enabled: false
+special-shards: {}
