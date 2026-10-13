@@ -33,7 +33,7 @@ jobs:
           JAR=$(find target -maxdepth 1 -name '*.jar' ! -name '*sources*' | head -1)
           test -n "$JAR"
           jar tf "$JAR" | grep -qx 'plugin.yml'
-          unzip -p "$JAR" plugin.yml | grep -qx 'version: 2.21.4-rc1'
+          unzip -p "$JAR" plugin.yml | tr -d '\r' | grep -qx 'version: 2.21.4-rc1'
       - uses: actions/upload-artifact@v4
         with:
           name: WorldForgeItemGen-2.21.4-rc1-release-A
