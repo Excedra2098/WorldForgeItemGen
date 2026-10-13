@@ -79,3 +79,9 @@ realm-boundaries:
   # Only staff receive automatic effects on entering a registered Realm.
   staff-auto:
     enabled: false
+
+  # Phase 3.8: UUID-allowlisted regular-player pilot; disabled by default.
+  player-pilot:
+    enabled: false
+    max-active: 4
+    allowed-uuids: []
