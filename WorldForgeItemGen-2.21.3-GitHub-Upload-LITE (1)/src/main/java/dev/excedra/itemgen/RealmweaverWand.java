@@ -101,16 +101,16 @@ final class RealmweaverWand implements Listener, CommandExecutor {
         }else{
             Selection selection=selections.get(player.getUniqueId());
             selection.placement=null;
-            try{selection.placement=realms.connectShard(player,selection.shard,selection.target,selection.rotation);realms.validatePlacement(player,selection.placement,selection.target,PlacementRotation.NONE);selection.valid=true;selection.validationMessage="Clear for placement with bridge";}
+            try{selection.placement=realms.connectShard(player,selection.shard,selection.target,selection.rotation);realms.validatePlacement(player,selection.placement,selection.target,PlacementRotation.NONE);selection.valid=true;selection.validationMessage="Placement valid - bridge connected";}
             catch(Exception invalid){selection.valid=false;selection.validationMessage=invalid.getMessage();}
             menu.inventory.setItem(22,selection.shard.source().clone());
-            menu.inventory.setItem(31,button(selection.valid?Material.LIME_DYE:Material.RED_DYE,selection.valid?"Clear for placement":"Placement blocked",selection.validationMessage));
-            menu.inventory.setItem(45,button(Material.COMPASS,"Retarget","Close this menu and right-click while aiming."));
-            menu.inventory.setItem(46,button(Material.CLOCK,"Rotate 90°","Current: "+selection.rotation));
-            menu.inventory.setItem(48,button(Material.LIME_DYE,"Confirm placement","Consumes one selected Shard after safety checks."));
+            menu.inventory.setItem(31,button(selection.valid?Material.LIME_DYE:Material.RED_DYE,selection.valid?"Ready to forge":"Placement unavailable",selection.validationMessage));
+            menu.inventory.setItem(45,button(Material.COMPASS,"Retarget","Close this menu; aim elsewhere and right-click again."));
+            menu.inventory.setItem(46,button(Material.CLOCK,"Rotate 90°","Preview rotation: "+selection.rotation));
+            menu.inventory.setItem(48,button(Material.LIME_DYE,"Confirm placement","Forge at this location after existing safety checks; uses one Shard."));
             menu.inventory.setItem(49,button(Material.BARRIER,"Cancel placement"));
             menu.inventory.setItem(50,button(Material.CHEST,"Select another Shard"));
-            menu.inventory.setItem(4,button(Material.PAPER,"Placement position",selection.target.getBlockX()+", "+selection.target.getBlockY()+", "+selection.target.getBlockZ(),realms.coreCoordinates(player,selection.target),"Green surface; gold bridge; red means blocked."));
+            menu.inventory.setItem(4,button(Material.PAPER,"Placement position",selection.target.getBlockX()+", "+selection.target.getBlockY()+", "+selection.target.getBlockZ(),realms.coreCoordinates(player,selection.target),"Green: valid terrain; gold: bridge; red: invalid placement."));
         }
         player.openInventory(menu.inventory);
     }
@@ -125,15 +125,15 @@ final class RealmweaverWand implements Listener, CommandExecutor {
                 if(slot==49){player.closeInventory();return;}
                 if(slot>=36)return;
                 ItemStack shown=menu.inventory.getItem(slot),source=player.getInventory().getItem(slot);
-                if(shown==null||source==null||!shown.isSimilar(source))throw new IllegalStateException("That inventory slot changed; reopen selection.");
+                if(shown==null||source==null||!shown.isSimilar(source))throw new IllegalStateException("Selected Shard changed in your inventory; reopen the selection menu.");
                 ShardSpec spec=realms.read(source);if(spec==null)return;
                 if(!selections.containsKey(player.getUniqueId())&&selections.size()>=4)throw new IllegalStateException("Placement previews are busy; try again shortly.");
                 var prepared=realms.prepareShard(source,spec);
                 selections.put(player.getUniqueId(),new Selection(slot,prepared,aim(player,prepared.plan())));open(player,false);return;
             }
             Selection selected=selections.get(player.getUniqueId());
-            if(selected==null)throw new IllegalStateException("Preview expired; select a Shard again.");
-            if(System.currentTimeMillis()>selected.expires)throw new IllegalStateException("Preview expired; select a Shard again.");
+            if(selected==null)throw new IllegalStateException("Your placement selection expired. Select the Shard again.");
+            if(System.currentTimeMillis()>selected.expires)throw new IllegalStateException("Your placement selection expired. Select the Shard again.");
             switch(slot){
                 case 45 -> player.closeInventory();
                 case 46 -> {selected.rotation=PlacementRotation.values()[(selected.rotation.ordinal()+1)%4];open(player,false);}
@@ -151,7 +151,7 @@ final class RealmweaverWand implements Listener, CommandExecutor {
             if(player==null||player.isDead()||System.currentTimeMillis()>selected.expires||!player.getWorld().equals(selected.target.getWorld())){iterator.remove();continue;}
             if(!wand(player.getInventory().getItemInMainHand()))continue;
             ItemStack source=player.getInventory().getItem(selected.slot);
-            if(source==null||!source.isSimilar(selected.shard.source())){iterator.remove();player.sendMessage("§eSelected Shard moved; placement cancelled.");continue;}
+            if(source==null||!source.isSimilar(selected.shard.source())){iterator.remove();player.sendMessage("§eSelected Shard moved or changed; preview cancelled. Reopen Realmweaver.");continue;}
             draw(player,selected,selected.valid?Color.fromRGB(70,220,170):Color.fromRGB(230,70,70));
         }
     }
