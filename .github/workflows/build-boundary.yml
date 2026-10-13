@@ -18,14 +18,24 @@ jobs:
       - name: Build plugin against Paper API
         working-directory: 'WorldForgeItemGen-2.21.3-GitHub-Upload-LITE (1)'
         run: mvn --batch-mode --no-transfer-progress clean package -DskipTests
+      - name: Compile existing verification classes
+        working-directory: 'WorldForgeItemGen-2.21.3-GitHub-Upload-LITE (1)'
+        run: mvn --batch-mode --no-transfer-progress test-compile
+      - name: Run placement geometry regression verification
+        working-directory: 'WorldForgeItemGen-2.21.3-GitHub-Upload-LITE (1)'
+        run: mvn --batch-mode --no-transfer-progress org.codehaus.mojo:exec-maven-plugin:3.5.0:java -Dexec.classpathScope=test -Dexec.mainClass=dev.excedra.itemgen.PlacementVerification
+      - name: Run Realmweaver inventory regression verification
+        working-directory: 'WorldForgeItemGen-2.21.3-GitHub-Upload-LITE (1)'
+        run: mvn --batch-mode --no-transfer-progress org.codehaus.mojo:exec-maven-plugin:3.5.0:java -Dexec.classpathScope=test -Dexec.mainClass=dev.excedra.itemgen.RealmweaverVerification
       - name: Verify plugin descriptor is bundled
         working-directory: 'WorldForgeItemGen-2.21.3-GitHub-Upload-LITE (1)'
         run: |
           JAR=$(find target -maxdepth 1 -name '*.jar' ! -name '*sources*' | head -1)
           test -n "$JAR"
           jar tf "$JAR" | grep -qx 'plugin.yml'
+          unzip -p "$JAR" plugin.yml | grep -qx 'version: 2.21.4-rc1'
       - uses: actions/upload-artifact@v4
         with:
-          name: WorldForgeItemGen-2.21.3-boundary-calibration-UNTESTED
+          name: WorldForgeItemGen-2.21.4-rc1-release-A
           path: 'WorldForgeItemGen-2.21.3-GitHub-Upload-LITE (1)/target/*.jar'
           if-no-files-found: error
