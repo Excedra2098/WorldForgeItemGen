@@ -212,6 +212,7 @@ final class RealmShards implements Listener, CommandExecutor, TabCompleter {
                 if(!(sender instanceof Player p))throw new IllegalArgumentException("Use boundary calibration in-game.");
                 if(args.length<2)throw new IllegalArgumentException("/realmshards boundary <profiles|preview [radius]|perimeter [radius]|hybrid [radius]|watch [radius]|realmtest [radius]|realmwatch [radius]|footprints|unified|autounified|test|off|status>");
                 switch(args[1].toLowerCase(Locale.ROOT)){
+                    case "simulate" -> simulateBoundary(p,args.length>2?args[2].toLowerCase(Locale.ROOT):"");
                     case "profiles" -> boundaryPreview.profiles(p);
                     case "preview" -> boundaryPreview.preview(p,args.length>2?Integer.parseInt(args[2]):24);
                     case "test" -> boundaryPreview.test(p);
@@ -293,7 +294,9 @@ final class RealmShards implements Listener, CommandExecutor, TabCompleter {
 
         if(a.length==1){List<String> commands=new ArrayList<>(List.of("menu","preview","give","roll","testremove","testremoveall","boundary"));if(s instanceof ConsoleCommandSender)commands.add("claim");if(s instanceof Player p&&access.owner(p))commands.addAll(List.of("schematics","testtools"));return commands.stream().filter(v->v.startsWith(a[0].toLowerCase(Locale.ROOT))).toList();}
 
-        if(a.length==2&&a[0].equalsIgnoreCase("boundary"))return List.of("profiles","preview","perimeter","hybrid","watch","realmtest","realmwatch","footprints","unified","autounified","test","off","status").stream().filter(v->v.startsWith(a[1].toLowerCase(Locale.ROOT))).toList();
+        if(a.length==2&&a[0].equalsIgnoreCase("boundary"))return List.of("profiles","preview","perimeter","hybrid","watch","realmtest","realmwatch","footprints","unified","autounified","test","off","status","simulate").stream().filter(v->v.startsWith(a[1].toLowerCase(Locale.ROOT))).toList();
+
+        if(a.length==3&&a[0].equalsIgnoreCase("boundary")&&a[1].equalsIgnoreCase("simulate"))return List.of("allowed","denied","capacity","ownership").stream().filter(v->v.startsWith(a[2].toLowerCase(Locale.ROOT))).toList();
 
         if(a.length==2&&a[0].equalsIgnoreCase("testremove"))return "all".startsWith(a[1].toLowerCase(Locale.ROOT))?List.of("all"):List.of();
 
@@ -885,6 +888,28 @@ final class RealmShards implements Listener, CommandExecutor, TabCompleter {
         }catch(IllegalStateException notRealm) {
             // World spawn or an unregistered island is not a boundary target.
         }
+    }
+
+    /** Read-only diagnostics using the same gating inputs as the player pilot. */
+    private void simulateBoundary(Player p,String scenario) {
+        boolean enabled=plugin.getConfig().getBoolean("realm-boundaries.player-pilot.enabled",false);
+        boolean listed=plugin.getConfig().getStringList("realm-boundaries.player-pilot.allowed-uuids").contains(p.getUniqueId().toString());
+        boolean capacity=boundaryPreview.hasAutoCapacity();
+        boolean owns=false,hasCore=false;
+        try {
+            var realm=islands.describe(p.getWorld());
+            owns=realm.owner().equals(p.getUniqueId());
+            hasCore=realmCore!=null&&realmCore.expansionAnchor(realm.id())!=null;
+        }catch(IllegalStateException ignored) {}
+        p.sendMessage("§dBoundary simulation §7("+scenario+"): §fNo state changed.");
+        switch(scenario) {
+            case "allowed" -> p.sendMessage("§7Pilot enabled: "+enabled+" | UUID listed: "+listed+" | Own Realm: "+owns+" | Core: "+hasCore+" | Capacity: "+capacity+" | Eligible: "+(enabled&&listed&&owns&&hasCore&&capacity));
+            case "denied" -> p.sendMessage("§7Unlisted non-staff player: DENIED (allowlist check).");
+            case "capacity" -> p.sendMessage("§7Available capacity now: "+capacity+" | At capacity, new automatic watches are DENIED.");
+            case "ownership" -> p.sendMessage("§7Current Realm owned by your account: "+owns+" | Registered Core: "+hasCore+" | Other owners: DENIED.");
+            default -> throw new IllegalArgumentException("/realmshards boundary simulate <allowed|denied|capacity|ownership>");
+        }
+        p.sendMessage("§8Simulation does not change your staff rank or create a boundary watch.");
     }
 
     @EventHandler public void enterRealm(PlayerChangedWorldEvent event) {
