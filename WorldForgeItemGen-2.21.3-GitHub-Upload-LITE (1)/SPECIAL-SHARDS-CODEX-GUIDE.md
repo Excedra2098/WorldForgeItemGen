@@ -57,3 +57,8 @@ Sizes and extra fields are authoring hints only. In C1, dimensions/anchor/method
 IDs are lowercase and stable; model references use namespaced IDs; relative asset paths must not contain traversal, absolute paths, or drive prefixes. base-land must be an existing ShardSpec.Land, tier 1–5, variant STANDARD, SHINY, or RAINBOW (RAINBOW only tier III+). Category is an uppercase identifier, and nine initial names are defined in SpecialShardCategory. C1 requires distribution.enabled=false.
  
 Codex should produce drafts and a list of dependencies and assumptions; it must not edit live plugin data, publish the resource pack, or enable content. Store new package files outside the plugin until a separate import workflow is approved.
+
+## C2 offline package staging
+A developer may call SpecialShardPackageManager.inspect(Path) or stage(input,stagingRoot) in an isolated Java test/harness using the test/runtime dependencies. There is **no public server command or startup importer** in C2. Codex should supply a folder or ZIP containing manifest.yml and island.schem; optional referenced assets are required to exist.
+ZIP entry count is capped at 512; entry bytes at 32 MiB; total extracted bytes at 128 MiB; archive size at 64 MiB. No nested archives, symbolic links in staged folders, path traversal, or overwriting revisions. The staged revision has CHECKSUMS.sha256.
+C2 schematic precheck only verifies .schem extension, file size, and gzip signature; it **does not** yet parse NBT palettes/dimensions or prove that the schematic is valid for FAWE. JSON/model animation contents and Asset Vault existence remain unverified. Treat these as warnings requiring subsequent approval and specialist validation, not as playable content.
