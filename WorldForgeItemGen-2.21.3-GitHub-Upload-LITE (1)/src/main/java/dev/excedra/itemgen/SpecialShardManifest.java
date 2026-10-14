@@ -1,6 +1,7 @@
 package dev.excedra.itemgen;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.bukkit.configuration.ConfigurationSection;
 /** Strict, read-only version 1 YAML-to-definition conversion. */
 final class SpecialShardManifest {
@@ -13,6 +14,16 @@ final class SpecialShardManifest {
         if(root==null||root.getInt("schema-version",-1)!=1)throw new IllegalArgumentException("Unsupported manifest schema version");
         ConfigurationSection identity=required(root,"identity"),shard=required(root,"shard"),island=required(root,"island"),assets=required(root,"assets"),distribution=required(root,"distribution");
         if(distribution.getBoolean("enabled",false))throw new IllegalArgumentException("C1 distribution cannot be enabled");
+        // C2-only checks: declared dimensions, anchor, and optional package dependencies.
+        var dimensions=island.getConfigurationSection("dimensions");
+        if(dimensions!=null)for(String axis:List.of("width","length","height")){
+            int value=dimensions.getInt(axis,-1);
+            if(value<1||value>1024)throw new IllegalArgumentException("Invalid island dimension: "+axis);
+        }
+        String anchorName=island.getString("placement-anchor","CENTER");
+        if(!Set.of("CENTER","ORIGIN").contains(anchorName))throw new IllegalArgumentException("Unsupported placement anchor");
+        var dependencies=root.getStringList("dependencies.asset-vault.references");
+        for(String dependency:dependencies)if(!dependency.matches("[a-z0-9_.-]+:[a-z0-9_./-]+"))throw new IllegalArgumentException("Invalid asset dependency");
         String category=identity.getString("category");
         try {
             return new SpecialShardDefinition(
