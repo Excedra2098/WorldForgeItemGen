@@ -32,6 +32,17 @@ public class Verification {
                         var below=new TerrainPlan.Pos(pos.x(),pos.y()-1,pos.z());
                         check(woodedPlan.blocks.get(below)!=org.bukkit.Material.GRASS_BLOCK,
                             "Unstable grass beneath generated trunk: "+wooded+" tier="+tier+" seed="+seed+" at "+below);
+                        // The tree leaves span two cells beyond the trunk; the
+                        // one-cell fringe can be shaded too. No grass may remain
+                        // in this generated canopy footprint.
+                        for(int dx=-3;dx<=3;dx++)for(int dz=-3;dz<=3;dz++){
+                            int x=pos.x()+dx,z=pos.z()+dz;
+                            Integer groundY=woodedPlan.surface.get(TerrainPlan.key(x,z));
+                            if(groundY==null)continue;
+                            var ground=new TerrainPlan.Pos(x,groundY,z);
+                            check(woodedPlan.blocks.get(ground)!=org.bukkit.Material.GRASS_BLOCK,
+                                "Unstable canopy grass: "+wooded+" tier="+tier+" seed="+seed+" at "+ground);
+                        }
                     }
                 }
         check(catalogue==156,"Biome catalogue count");
