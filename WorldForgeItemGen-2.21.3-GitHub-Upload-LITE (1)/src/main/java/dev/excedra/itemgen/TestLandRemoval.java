@@ -192,10 +192,10 @@ final class TestLandRemoval {
 
             journal=YamlConfiguration.loadConfiguration(land.path.toFile());
 
-            for(GeneratedLand.Cell cell:land.cells){Block b=block(cell.pos());String data=b.getBlockData().getAsString();if(!cell.removable(data)){skipped++;continue;}if(!guard.allowed(b.getLocation()))throw new IllegalStateException("Permanent Core or region protection denies removal here.");eligible.add(cell);before.put(cell.pos(),data);}
+            for(GeneratedLand.Cell cell:land.cells){Block b=block(cell.pos());String data=b.getBlockData().getAsString();if(!cell.removable(data)){if(reclaim){if(skipped<8)plugin.getLogger().warning("[ReclaimDiagnostics] mismatch world="+world.getName()+" player="+admin.getUniqueId()+" position="+cell.pos()+" expected="+cell.expected()+" actual="+data); }skipped++;continue;}if(!guard.allowed(b.getLocation()))throw new IllegalStateException("Permanent Core or region protection denies removal here.");eligible.add(cell);before.put(cell.pos(),data);}
 
             if(reclaim){
-                if(skipped>0)throw new IllegalStateException("This placement has mined or changed blocks. Restore it before reclaiming; no shard refunded.");
+                if(skipped>0){plugin.getLogger().warning("[ReclaimDiagnostics] blocked reclaim world="+world.getName()+" player="+admin.getUniqueId()+" mismatches="+skipped+" recordedCells="+land.cells.size());throw new IllegalStateException("This placement has mined or changed blocks. Restore it before reclaiming; no shard refunded.");}
                 returnShard=journal.getItemStack("reserved");if(returnShard==null||returnShard.getType().isAir())throw new IllegalStateException("The original shard is missing from this placement record; cannot safely refund.");returnShard=returnShard.clone();returnShard.setAmount(1);
                 for(var cell:eligible){var state=block(cell.pos()).getState(false);if(state instanceof org.bukkit.inventory.InventoryHolder holder&&java.util.Arrays.stream(holder.getInventory().getContents()).anyMatch(i->i!=null&&!i.getType().isAir()))throw new IllegalStateException("Empty placement containers before reclaiming.");}
                 journal.set("reclamation.player",admin.getUniqueId().toString());

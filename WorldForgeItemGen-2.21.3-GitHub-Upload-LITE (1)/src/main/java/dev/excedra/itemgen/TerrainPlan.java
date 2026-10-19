@@ -30,12 +30,13 @@ final class TerrainPlan {
             for(int y=bottom;y<=top;y++) put(x,y,z,y==top?top():y>=top-2?soil():stone());
             if(land==ShardSpec.Land.OCEAN && distance<.72) { put(x,top,z,Material.PRISMARINE); put(x,top+1,z,Material.WATER); }
         }
+        List<Pos> woodedTrees=new ArrayList<>();
         int count=Math.max(2,tier*2);
         for(int i=0;i<count;i++) {
             int x=rng.nextInt(radius*2-3)-radius+2, z=rng.nextInt(radius*2-3)-radius+2;
             Integer y=surface.get(key(x,z)); if(y==null) continue;
             switch(land) {
-                case FOREST,JUNGLE -> tree(x,y+1,z,land==ShardSpec.Land.JUNGLE?Material.JUNGLE_LOG:Material.OAK_LOG,land==ShardSpec.Land.JUNGLE?Material.JUNGLE_LEAVES:Material.OAK_LEAVES,tier>=4?5:3);
+                case FOREST,JUNGLE -> { tree(x,y+1,z,land==ShardSpec.Land.JUNGLE?Material.JUNGLE_LOG:Material.OAK_LOG,land==ShardSpec.Land.JUNGLE?Material.JUNGLE_LEAVES:Material.OAK_LEAVES,tier>=4?5:3); woodedTrees.add(new Pos(x,y,z)); }
                 case SNOW -> tree(x,y+1,z,Material.SPRUCE_LOG,Material.SPRUCE_LEAVES,4);
                 case DESERT -> { for(int h=1;h<=3;h++) put(x,y+h,z,Material.CACTUS); }
                 case CRYSTAL -> pillar(x,y+1,z,2+rng.nextInt(4),Material.AMETHYST_BLOCK,Material.BUDDING_AMETHYST);
@@ -46,6 +47,19 @@ final class TerrainPlan {
                 case VOLCANIC -> pillar(x,y+1,z,2+rng.nextInt(3),Material.BASALT,Material.MAGMA_BLOCK);
                 case OCEAN -> pillar(x,y+2,z,1,Material.PRISMARINE,Material.SEA_LANTERN);
                 case BADLANDS -> pillar(x,y+1,z,3+rng.nextInt(3),Material.TERRACOTTA,Material.RED_TERRACOTTA);
+            }
+        }
+        // Canopy shade can naturally decay grass even when it is not directly
+        // under a trunk. Use stable, forest-appropriate podzol in the canopy
+        // footprint, including the one-block fringe around the 5x5 leaves.
+        // Only touch planned grass cells; never overwrite structures or soil.
+        if(land==ShardSpec.Land.FOREST || land==ShardSpec.Land.JUNGLE){
+            for(Pos tree:woodedTrees)for(int dx=-3;dx<=3;dx++)for(int dz=-3;dz<=3;dz++){
+                int x=tree.x()+dx,z=tree.z()+dz;
+                Integer topY=surface.get(key(x,z));
+                if(topY==null)continue;
+                Pos ground=new Pos(x,topY,z);
+                if(blocks.get(ground)==Material.GRASS_BLOCK)blocks.put(ground,Material.PODZOL);
             }
         }
         if(land==ShardSpec.Land.VOLCANIC){
@@ -101,6 +115,10 @@ final class TerrainPlan {
     void put(int x,int y,int z,Material m){blocks.put(new Pos(x,y,z),m);}
     void pillar(int x,int y,int z,int height,Material stem,Material cap){for(int h=0;h<height;h++)put(x,y+h,z,stem);put(x,y+height,z,cap);}
     void tree(int x,int y,int z,Material log,Material leaves,int height){
+        // Plan stable dirt beneath generated trunks; otherwise covered grass may
+        // naturally decay after the placement state has already been journaled.
+        Pos support=new Pos(x,y-1,z);
+        if(blocks.get(support)==Material.GRASS_BLOCK)put(x,y-1,z,Material.DIRT);
         for(int h=0;h<height;h++)put(x,y+h,z,log);
         for(int h=height-2;h<=height;h++)for(int dx=-2;dx<=2;dx++)for(int dz=-2;dz<=2;dz++)if(Math.abs(dx)+Math.abs(dz)<4)blocks.putIfAbsent(new Pos(x+dx,y+h,z+dz),leaves);
         put(x,y+height+1,z,leaves);

@@ -20,6 +20,31 @@ public class Verification {
             for(var e:a.blocks.entrySet()){TerrainPlan.Pos p=e.getKey();check(Math.abs(p.x())<=a.radius+2&&Math.abs(p.z())<=a.radius+2,"Terrain outside reserved footprint: "+land);check(p.y()>=-a.radius-3&&p.y()<=12,"Terrain outside vertical clearance: "+land);check(e.getValue()!=org.bukkit.Material.AIR,"Planned air mutation");}
             for(ShardSpec.Variant variant:ShardSpec.Variant.values())if(tier>=3||variant!=ShardSpec.Variant.RAINBOW){ShardSpec s=new ShardSpec(tier,land,variant);check(s.key().matches("[a-z]+_t[1-5]_(standard|shiny|rainbow)"),"Invalid model identifier");catalogue++;}
         }
+        // Trunks must never shade a recorded grass support: vanilla would decay it
+        // to dirt after placement and reject an otherwise untouched reclamation.
+        for(ShardSpec.Land wooded:List.of(ShardSpec.Land.FOREST,ShardSpec.Land.JUNGLE))
+            for(int tier=1;tier<=5;tier++)
+                for(long seed=82501;seed<82526;seed++){
+                    TerrainPlan woodedPlan=new TerrainPlan(3+tier*2,wooded,seed,tier);
+                    org.bukkit.Material trunk=wooded==ShardSpec.Land.FOREST?org.bukkit.Material.OAK_LOG:org.bukkit.Material.JUNGLE_LOG;
+                    for(var entry:woodedPlan.blocks.entrySet())if(entry.getValue()==trunk){
+                        var pos=entry.getKey();
+                        var below=new TerrainPlan.Pos(pos.x(),pos.y()-1,pos.z());
+                        check(woodedPlan.blocks.get(below)!=org.bukkit.Material.GRASS_BLOCK,
+                            "Unstable grass beneath generated trunk: "+wooded+" tier="+tier+" seed="+seed+" at "+below);
+                        // The tree leaves span two cells beyond the trunk; the
+                        // one-cell fringe can be shaded too. No grass may remain
+                        // in this generated canopy footprint.
+                        for(int dx=-3;dx<=3;dx++)for(int dz=-3;dz<=3;dz++){
+                            int x=pos.x()+dx,z=pos.z()+dz;
+                            Integer groundY=woodedPlan.surface.get(TerrainPlan.key(x,z));
+                            if(groundY==null)continue;
+                            var ground=new TerrainPlan.Pos(x,groundY,z);
+                            check(woodedPlan.blocks.get(ground)!=org.bukkit.Material.GRASS_BLOCK,
+                                "Unstable canopy grass: "+wooded+" tier="+tier+" seed="+seed+" at "+ground);
+                        }
+                    }
+                }
         check(catalogue==156,"Biome catalogue count");
         SchematicVerification.run(Path.of(args[0]).toAbsolutePath().getParent().resolve("target/schematic-fixtures"));
         verifyClaims(Path.of(args[0]).toAbsolutePath().getParent().resolve("target/claim-fixtures-"+UUID.randomUUID()));
