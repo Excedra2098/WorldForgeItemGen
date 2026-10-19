@@ -101,6 +101,10 @@ final class TerrainPlan {
     void put(int x,int y,int z,Material m){blocks.put(new Pos(x,y,z),m);}
     void pillar(int x,int y,int z,int height,Material stem,Material cap){for(int h=0;h<height;h++)put(x,y+h,z,stem);put(x,y+height,z,cap);}
     void tree(int x,int y,int z,Material log,Material leaves,int height){
+        // Plan stable dirt beneath generated trunks; otherwise covered grass may
+        // naturally decay after the placement state has already been journaled.
+        Pos support=new Pos(x,y-1,z);
+        if(blocks.get(support)==Material.GRASS_BLOCK)put(x,y-1,z,Material.DIRT);
         for(int h=0;h<height;h++)put(x,y+h,z,log);
         for(int h=height-2;h<=height;h++)for(int dx=-2;dx<=2;dx++)for(int dz=-2;dz<=2;dz++)if(Math.abs(dx)+Math.abs(dz)<4)blocks.putIfAbsent(new Pos(x+dx,y+h,z+dz),leaves);
         put(x,y+height+1,z,leaves);
